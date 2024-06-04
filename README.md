@@ -21,7 +21,7 @@ DNS proxy/router for a specified list of hostnames
 
 ## Usage
   ```bash
-  ./env/bin/python -m gwhosts 192.168.2.1 ./gwhosts.example.gz
+  ./env/bin/python -m gwhosts.main 192.168.2.1 ./gwhosts.example.gz
   ```
 
 ## Used resources
