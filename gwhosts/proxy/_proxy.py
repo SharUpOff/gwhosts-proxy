@@ -66,7 +66,7 @@ class DNSProxy:
         if len(self._free_pool):
             return self._free_pool.pop()
 
-        fds = len(self._free_pool) + len(self._active_pool)
+        fds = len(self._active_pool)
 
         if fds >= self._max_fds:
             raise OverflowError(f"DNS: {fds}/{self._max_fds} file descriptors used")
