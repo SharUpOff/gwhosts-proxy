@@ -1,19 +1,28 @@
 import gzip
+import logging.handlers
 import sys
 from argparse import ArgumentParser
-from logging import DEBUG, StreamHandler, getLogger
 
 from gwhosts.dns import bytes_to_qname
 from gwhosts.network import Address
 from gwhosts.proxy import DNSProxy
 
-logger = getLogger("DNS")
-logger.setLevel(DEBUG)
-logger.addHandler(StreamHandler(sys.stdout))
-
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+
+    logging_levels = {
+        "critical": logging.CRITICAL,
+        "error": logging.ERROR,
+        "warning": logging.WARNING,
+        "info": logging.INFO,
+        "debug": logging.DEBUG,
+    }
+
+    logging_handlers = {
+        "stdout": logging.StreamHandler(sys.stdout),
+        "syslog": logging.handlers.SysLogHandler(address="/dev/log"),
+    }
 
     parser.add_argument("gateway", help="Gateway IP")
     parser.add_argument("hostsfile", help="Host List", nargs="?")
@@ -23,8 +32,27 @@ if __name__ == "__main__":
     parser.add_argument("--dns-port", dest="dns_port", help="Remote DNS port", default="65053", type=int)
     parser.add_argument("--timeout", dest="timeout", help="DNS queries timeout in seconds", default=5, type=int)
     parser.add_argument("--max-fds", dest="max_fds", help="Maximum opened sockets", default=10, type=int)
+    parser.add_argument(
+        "--log-level",
+        dest="log_level",
+        help="Logging level",
+        default="info",
+        choices=logging_levels.keys(),
+    )
+    parser.add_argument(
+        "--log-to",
+        dest="log_handler",
+        help="Logging handler",
+        default="stdout",
+        choices=logging_handlers.keys(),
+    )
+    parser.add_argument("--log-name", dest="log_name", help="Logger name", default="DNS")
 
     args = parser.parse_args()
+
+    logger = logging.getLogger(args.log_name)
+    logger.setLevel(logging_levels[args.log_level])
+    logger.addHandler(logging_handlers[args.log_handler])
 
     if args.hostsfile:
         logger.info(f"DNS: reading hostnames from {args.hostsfile}")
