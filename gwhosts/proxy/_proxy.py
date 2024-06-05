@@ -121,12 +121,18 @@ class DNSProxy:
 
         return {}
 
-    def _process_requests_queue(self) -> None:
+    def _process_queued_queries(self) -> int:
+        """ Process queued queries and return the number of remaining ones
+
+            :return: Number of remaining queries
+        """
         queue_size = len(self._requests_queue)
         available_fds = self._max_fds - len(self._active_pool)
 
         for _ in range(min(queue_size, available_fds)):
             self._route_request(self._requests_queue.popleft())
+
+        return len(self._requests_queue)
 
     def _route_request(self, datagram: Datagram) -> None:
         data, addr = datagram
@@ -263,7 +269,11 @@ class DNSProxy:
                         if expired_queries:
                             self._logger.warning(f"DNS: {expired_queries} queries expired")
 
-                        self._process_requests_queue()
+                        queued_queries = self._process_queued_queries()
+
+                        if queued_queries:
+                            self._logger.warning(f"DNS: {queued_queries} remaining queries")
+
                         self._sanitize_free_pool(self._free_pool)
 
                         if routed_responses:
