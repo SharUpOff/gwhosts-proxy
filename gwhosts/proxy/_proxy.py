@@ -49,7 +49,7 @@ class DNSProxy:
         self._input_pool: List[UDPSocket] = []
         self._regular_pool: Dict[UDPSocket, ExpiringAddress] = {}
         self._routed_pool: Dict[UDPSocket, ExpiringAddress] = {}
-        self._requests_queue: deque = deque()
+        self._queries_queue: deque = deque()
         self._addresses: Set[IPAddress] = set()
         self._subnets: Set[Network] = set()
         self._netlink_event_handlers: Dict[RTMEvent, Callable] = {
@@ -126,13 +126,13 @@ class DNSProxy:
 
             :return: Number of remaining queries
         """
-        queue_size = len(self._requests_queue)
+        queue_size = len(self._queries_queue)
         available_fds = self._max_fds - len(self._active_pool)
 
         for _ in range(min(queue_size, available_fds)):
-            self._route_request(self._requests_queue.popleft())
+            self._route_request(self._queries_queue.popleft())
 
-        return len(self._requests_queue)
+        return len(self._queries_queue)
 
     def _route_request(self, datagram: Datagram) -> None:
         data, addr = datagram
@@ -248,7 +248,7 @@ class DNSProxy:
 
                         for _socket in r_ready:
                             if _socket is udp:
-                                self._requests_queue.append(self._read(_socket))
+                                self._queries_queue.append(self._read(_socket))
 
                             elif _socket in self._routed_pool:
                                 routed_responses.append(self._read_and_release(_socket, self._routed_pool))
