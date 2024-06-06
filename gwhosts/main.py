@@ -31,7 +31,6 @@ if __name__ == "__main__":
     parser.add_argument("--dns-host", dest="dns_host", help="Remote DNS address", default="127.0.0.1")
     parser.add_argument("--dns-port", dest="dns_port", help="Remote DNS port", default="65053", type=int)
     parser.add_argument("--timeout", dest="timeout", help="DNS queries timeout in seconds", default=5, type=int)
-    parser.add_argument("--max-fds", dest="max_fds", help="Maximum opened sockets", default=10, type=int)
     parser.add_argument(
         "--log-level",
         dest="log_level",
@@ -71,6 +70,5 @@ if __name__ == "__main__":
         hostnames=_hostnames,
         logger=logger,
         timeout_in_seconds=args.timeout,
-        max_fds=args.max_fds,
     )
     proxy.listen(Address(args.host, args.port))

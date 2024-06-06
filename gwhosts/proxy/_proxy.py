@@ -1,3 +1,5 @@
+import os
+import resource
 from collections import deque
 from functools import lru_cache
 from logging import Logger
@@ -36,13 +38,11 @@ class DNSProxy:
         to_addr: Address = Address("127.0.0.1", 8053),
         buff_size: int = 1024,
         timeout_in_seconds: int = 5,
-        max_fds: int = 10,
     ) -> None:
         self._gateway = gateway
         self._to_addr = to_addr
         self._buff_size = buff_size
         self._timeout_in_seconds = timeout_in_seconds
-        self._max_fds = max_fds
         self._hostnames: Set[QName] = hostnames
         self._logger: Logger = logger
         self._free_pool: List[UDPSocket] = []
@@ -59,17 +59,28 @@ class DNSProxy:
         self._update_routes_queue: List[Tuple[Dict[Network, bool], List[Datagram]]] = []
 
     @property
+    def _open_files_count(self) -> int:
+        """ :return: The number of open file descriptors
+        """
+        open_files = os.listdir("/proc/self/fd")
+
+        return len(open_files)
+
+    @property
+    def _max_open_files_count(self) -> int:
+        """ :return: Current soft limit on the number of open file descriptors
+        """
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+
+        return soft
+
+    @property
     def _active_pool(self):
         return [*self._input_pool, *self._regular_pool, *self._routed_pool]
 
     def _get_socket(self) -> UDPSocket:
         if len(self._free_pool):
             return self._free_pool.pop()
-
-        fds = len(self._active_pool)
-
-        if fds >= self._max_fds:
-            raise OverflowError(f"DNS: {fds}/{self._max_fds} file descriptors used")
 
         _socket = UDPSocket()
         _socket.setblocking(False)
@@ -127,9 +138,9 @@ class DNSProxy:
             :return: Number of remaining queries
         """
         queue_size = len(self._queries_queue)
-        available_fds = self._max_fds - len(self._active_pool)
+        available_file_descriptors_count = self._max_open_files_count - self._open_files_count
 
-        for _ in range(min(queue_size, available_fds)):
+        for _ in range(min(queue_size, available_file_descriptors_count)):
             self._route_request(self._queries_queue.popleft())
 
         return len(self._queries_queue)
