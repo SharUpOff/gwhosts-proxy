@@ -1,5 +1,5 @@
 import gzip
-import logging.handlers
+import logging
 import sys
 from argparse import ArgumentParser
 
@@ -19,11 +19,6 @@ if __name__ == "__main__":
         "debug": logging.DEBUG,
     }
 
-    logging_handlers = {
-        "stdout": logging.StreamHandler(sys.stdout),
-        "syslog": logging.handlers.SysLogHandler(address="/dev/log"),
-    }
-
     parser.add_argument("gateway", help="Gateway IP")
     parser.add_argument("hostsfile", help="Host List", nargs="?")
     parser.add_argument("--host", dest="host", help="Listening address", default="127.0.0.1")
@@ -38,20 +33,13 @@ if __name__ == "__main__":
         default="info",
         choices=logging_levels.keys(),
     )
-    parser.add_argument(
-        "--log-to",
-        dest="log_handler",
-        help="Logging handler",
-        default="stdout",
-        choices=logging_handlers.keys(),
-    )
     parser.add_argument("--log-name", dest="log_name", help="Logger name", default="DNS")
 
     args = parser.parse_args()
 
     logger = logging.getLogger(args.log_name)
     logger.setLevel(logging_levels[args.log_level])
-    logger.addHandler(logging_handlers[args.log_handler])
+    logger.addHandler(logging.StreamHandler(sys.stdout))
 
     if args.hostsfile:
         logger.info(f"DNS: reading hostnames from {args.hostsfile}")
