@@ -6,6 +6,8 @@ DNS proxy/router for a specified list of hostnames
 2. Adds static routes combining similar addresses into subnets
 3. Traffic for the list of hostnames goes through the specified gateway (e.g. VPN)
 
+![common-sequence.png](./doc/img/common-sequence.png "Sequence Diagram")
+
 ## Installation
   ```bash
   git clone https://github.com/sharupoff/gwhosts-proxy.git
