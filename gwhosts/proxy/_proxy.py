@@ -91,10 +91,10 @@ class DNSProxy:
     def subnets(self) -> Set[Network]:
         return self._subnets
 
-    @lru_cache(maxsize=4094)
     def _hostname_exists(self, hostname: QName) -> bool:
         for level in range(len(hostname)):
             if hostname[level:] in self._hostnames:
+                self._hostnames.add(hostname)
                 return True
 
         return False
