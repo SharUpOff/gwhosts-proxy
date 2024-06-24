@@ -1,4 +1,4 @@
-from gwhosts.dns._types import DNSData, QName, RRType
+from gwhosts.dns._types import DNSData, RRType
 
 
 def remove_ipv6(data: DNSData) -> DNSData:
@@ -9,7 +9,3 @@ def remove_ipv6(data: DNSData) -> DNSData:
         authorities=data.authorities,
         additions=data.additions,
     )
-
-
-def bytes_to_qname(data: bytes) -> QName:
-    return QName(data.rstrip(b"\n").split(b"."))

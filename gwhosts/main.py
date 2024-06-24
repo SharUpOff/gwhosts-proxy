@@ -3,7 +3,7 @@ import logging
 import sys
 from argparse import ArgumentParser
 
-from gwhosts.dns import bytes_to_qname
+from gwhosts.dns import QName
 from gwhosts.network import Address
 from gwhosts.proxy import DNSProxy
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         logger.info(f"DNS: reading hostnames from {args.hostsfile}")
 
         with gzip.open(args.hostsfile, "r") as hostsfile:
-            _hostnames = {bytes_to_qname(_name) for _name in hostsfile.readlines()}
+            _hostnames = {QName(_name.split(b".")) for _name in hostsfile.read().splitlines()}
 
         logger.info(f"DNS: {len(_hostnames)} hostnames were added to the proxying list")
 

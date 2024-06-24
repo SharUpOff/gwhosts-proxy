@@ -1,6 +1,6 @@
 from gwhosts.dns._parsers import parse
 from gwhosts.dns._serializers import serialize
-from gwhosts.dns._tools import bytes_to_qname, remove_ipv6
+from gwhosts.dns._tools import remove_ipv6
 from gwhosts.dns._types import Addition, Answer, Authority, DNSData, Header, QName, Question, RRType
 
 __all__ = [
@@ -15,5 +15,4 @@ __all__ = [
     "parse",
     "serialize",
     "remove_ipv6",
-    "bytes_to_qname",
 ]
