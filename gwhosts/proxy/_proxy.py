@@ -1,3 +1,4 @@
+import gzip
 import os
 import resource
 from collections import deque
@@ -5,10 +6,11 @@ from functools import lru_cache
 from logging import Logger
 from select import select
 from socket import socket
+from tempfile import mktemp
 from time import time
 from typing import Callable, Dict, Iterator, List, Set, Tuple
 
-from gwhosts.dns import QName, RRType, parse, remove_ipv6, serialize
+from gwhosts.dns import QName, DNSParserError, RRType, parse, remove_ipv6, serialize
 from gwhosts.network import (
     NETMASK_MAX,
     Address,
@@ -147,10 +149,29 @@ class DNSProxy:
 
     def _route_request(self, datagram: Datagram) -> None:
         data, addr = datagram
+
+        try:
+            query = parse(data)
+
+        except DNSParserError as parser_error:
+            self._logger.error("Failed to parse DNS query")
+
+            try:
+                with gzip.open(mktemp(prefix="dns.query.", suffix=".gz"), 'w') as dump:
+                    dump.write(data)
+
+            except Exception as dump_error:
+                self._logger.exception(parser_error)
+                self._logger.exception(dump_error)
+
+            else:
+                self._logger.error(f"To reproduce, run: zcat {dump.name} | python -m gwhosts.dns.parser")
+
+            return
+
         remote = self._get_socket()
         remote.sendto(data, self._to_addr)
 
-        query = parse(data)
         domains = [q.name for q in query.questions]
 
         if any(self._hostname_exists(hostname) for hostname in domains):
@@ -191,9 +212,27 @@ class DNSProxy:
         self._release(_socket)
         return Datagram(data, pool.pop(_socket).address)
 
-    @staticmethod
-    def _parse_responses(responses: List[Datagram]) -> List[DNSDataMessage]:
-        return [DNSDataMessage(parse(data), addr) for data, addr in responses]
+    def _parse_responses(self, responses: List[Datagram]) -> Iterator[DNSDataMessage]:
+        for data, addr in responses:
+            try:
+                response = parse(data)
+
+            except DNSParserError as parser_error:
+                self._logger.error("Failed to parse DNS response")
+
+                try:
+                    with gzip.open(mktemp(prefix="dns.response.", suffix=".gz"), 'w') as dump:
+                        dump.write(data)
+
+                except Exception as dump_error:
+                    self._logger.exception(parser_error)
+                    self._logger.exception(dump_error)
+
+                else:
+                    self._logger.error(f"To reproduce, run: zcat {dump.name} | python -m gwhosts.dns.parser")
+
+            else:
+                yield DNSDataMessage(response, addr)
 
     @staticmethod
     def _prepare_routed_responses(data_messages: List[DNSDataMessage]) -> Iterator[Datagram]:
@@ -288,7 +327,7 @@ class DNSProxy:
                         self._sanitize_free_pool(self._free_pool)
 
                         if routed_responses:
-                            dns_data_messages = self._parse_responses(routed_responses)
+                            dns_data_messages = list(self._parse_responses(routed_responses))
 
                             updates = self._update_routes(dns_data_messages)
 

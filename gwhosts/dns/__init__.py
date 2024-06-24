@@ -1,10 +1,12 @@
 from gwhosts.dns._parsers import parse
 from gwhosts.dns._serializers import serialize
+from gwhosts.dns._exceptions import DNSParserError
 from gwhosts.dns._tools import remove_ipv6
 from gwhosts.dns._types import Addition, Answer, Authority, DNSData, Header, QName, Question, RRType
 
 __all__ = [
     "DNSData",
+    "DNSParserError",
     "Header",
     "Question",
     "QName",

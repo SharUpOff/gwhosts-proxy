@@ -1,7 +1,7 @@
 from io import BytesIO
-from struct import unpack
 from typing import BinaryIO, Iterable, Tuple
 
+from gwhosts.dns._struct import unpack
 from gwhosts.dns._types import Addition, Answer, Authority, DNSData, Header, QName, Question
 
 
