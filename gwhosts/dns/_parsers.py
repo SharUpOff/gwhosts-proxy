@@ -59,8 +59,11 @@ def _parse_addition(buffer: BinaryIO) -> Addition:
     return Addition(*_parse_resource(buffer))
 
 
-def parse(data: bytes) -> DNSData:
-    buffer = BytesIO(data)
+def _bytes_to_buffer(data: bytes) -> BytesIO:
+    return BytesIO(data)
+
+
+def _parse(buffer: BytesIO) -> DNSData:
     header = _parse_header(buffer)
 
     return DNSData(
@@ -70,3 +73,7 @@ def parse(data: bytes) -> DNSData:
         authorities=[_parse_authority(buffer) for _ in range(header.authorities)],
         additions=[_parse_addition(buffer) for _ in range(header.additions)],
     )
+
+
+def parse(data: bytes) -> DNSData:
+    return _parse(_bytes_to_buffer(data))
