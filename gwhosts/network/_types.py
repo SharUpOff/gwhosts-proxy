@@ -8,6 +8,15 @@ NetworkSize = int
 IPBinary = int
 
 
+NETSIZE_MAX = 32
+NETMASK_MAX: IPBinary = 0xFFFFFFFF
+NETMASK_MIN: IPBinary = 0xFF000000
+
+# all normal routes are put there by default
+# https://www.kernel.org/doc/Documentation/networking/policy-routing.txt
+RT_CLASS_MAIN: RouteClass = 254
+
+
 class Address(NamedTuple):
     host: IPAddress
     port: Port
