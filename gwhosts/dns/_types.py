@@ -35,11 +35,13 @@ class RRType(Enum):
     """Resource Record (RR) TYPEs
     :param A: IPv4 Address [https://www.iana.org/go/rfc1035]
     :param AAAA: IPv6 Address [https://www.iana.org/go/rfc3596]
+    :param CNAME: the canonical name for an alias [https://www.iana.org/go/rfc1035]
     :see: https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4
     """
 
     A: int = 1
     AAAA: int = 28
+    CNAME: int = 5
 
 
 @dataclass
