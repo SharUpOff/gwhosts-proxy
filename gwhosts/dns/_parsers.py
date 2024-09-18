@@ -31,14 +31,18 @@ def _parse_name(buffer: BinaryIO) -> Iterable[bytes]:
             yield buffer.read(length)
 
 
+def _parse_qname(buffer: BinaryIO) -> QName:
+    return QName(_parse_name(buffer))
+
+
 def _parse_question(buffer: BinaryIO) -> Question:
-    name = QName(_parse_name(buffer))
+    name = _parse_qname(buffer)
     rr_type, rr_class = unpack("!HH", buffer.read(4))
     return Question(name, rr_type, rr_class)
 
 
 def _parse_resource(buffer: BinaryIO) -> Tuple[QName, int, int, int, int, bytes]:
-    name = QName(_parse_name(buffer))
+    name = _parse_qname(buffer)
     rr_type, rr_class, ttl, rr_data_length = unpack("!HHIH", buffer.read(10))
     return name, rr_type, rr_class, ttl, rr_data_length, buffer.read(rr_data_length)
 
