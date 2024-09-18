@@ -21,7 +21,7 @@ def _parse_compressed_name(length: int, buffer: BinaryIO) -> Iterable[bytes]:
 
 
 def _parse_name(buffer: BinaryIO) -> Iterable[bytes]:
-    while (length := buffer.read(1)[0]) != 0:
+    while (length := (buffer.read(1) or b'\0x00')[0]) != 0:
         if length & 0b1100_0000:
             for name in _parse_compressed_name(length, buffer):
                 yield name
