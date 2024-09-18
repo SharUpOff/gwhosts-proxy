@@ -77,3 +77,7 @@ def _parse(buffer: BytesIO) -> DNSData:
 
 def parse(data: bytes) -> DNSData:
     return _parse(_bytes_to_buffer(data))
+
+
+def parse_qname(data: bytes) -> QName:
+    return _parse_qname(_bytes_to_buffer(data))

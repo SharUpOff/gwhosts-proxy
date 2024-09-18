@@ -1,4 +1,4 @@
-from gwhosts.dns._parsers import parse
+from gwhosts.dns._parsers import parse, parse_qname
 from gwhosts.dns._serializers import serialize
 from gwhosts.dns._exceptions import DNSParserError
 from gwhosts.dns._tools import remove_ipv6
@@ -17,4 +17,5 @@ __all__ = [
     "parse",
     "serialize",
     "remove_ipv6",
+    "parse_qname",
 ]
