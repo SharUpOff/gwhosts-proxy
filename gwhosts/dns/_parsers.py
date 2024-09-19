@@ -1,8 +1,9 @@
 from io import BytesIO
 from typing import BinaryIO, Iterable, Tuple
 
-from gwhosts.dns._struct import unpack
-from gwhosts.dns._types import Addition, Answer, Authority, DNSData, Header, QName, Question
+from ._exceptions import DNSParserRecursionError
+from ._struct import unpack
+from ._types import Addition, Answer, Authority, DNSData, Header, QName, Question
 
 
 def _parse_header(buffer: BinaryIO) -> Header:
@@ -21,7 +22,7 @@ def _parse_compressed_name(length: int, buffer: BinaryIO) -> Iterable[bytes]:
 
 
 def _parse_name(buffer: BinaryIO) -> Iterable[bytes]:
-    while (length := (buffer.read(1) or b'\0x00')[0]) != 0:
+    while (length := (buffer.read(1) or b"\0x00")[0]) != 0:
         if length & 0b1100_0000:
             for name in _parse_compressed_name(length, buffer):
                 yield name
@@ -32,7 +33,13 @@ def _parse_name(buffer: BinaryIO) -> Iterable[bytes]:
 
 
 def _parse_qname(buffer: BinaryIO) -> QName:
-    return QName(_parse_name(buffer))
+    try:
+        name = _parse_name(buffer)
+
+    except RecursionError as e:
+        raise DNSParserRecursionError from e
+
+    return QName(name)
 
 
 def _parse_question(buffer: BinaryIO) -> Question:

@@ -1,5 +1,6 @@
 import struct
-from gwhosts.dns._exceptions import DNSParserError
+
+from ._exceptions import DNSParserUnpackError
 
 
 def unpack(*args, **kwargs):
@@ -7,4 +8,4 @@ def unpack(*args, **kwargs):
         return struct.unpack(*args, **kwargs)
 
     except struct.error as e:
-        raise DNSParserError from e
+        raise DNSParserUnpackError from e
