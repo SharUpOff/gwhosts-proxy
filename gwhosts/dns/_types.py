@@ -36,12 +36,14 @@ class RRType(Enum):
     :param A: IPv4 Address [https://www.iana.org/go/rfc1035]
     :param AAAA: IPv6 Address [https://www.iana.org/go/rfc3596]
     :param CNAME: the canonical name for an alias [https://www.iana.org/go/rfc1035]
+    :param OPT: a pseudo-record type [https://www.iana.org/go/rfc6891]
     :see: https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4
     """
 
     A: int = 1
     AAAA: int = 28
     CNAME: int = 5
+    OPT: int = 41
 
 
 @dataclass
@@ -60,6 +62,18 @@ class Header:
     @property
     def aa(self) -> bool:
         return bool(self.flags & Flags.AA.value)
+
+    @property
+    def tc(self) -> bool:
+        return bool(self.flags & Flags.TC.value)
+
+    @property
+    def rd(self) -> bool:
+        return bool(self.flags & Flags.RD.value)
+
+    @property
+    def ra(self) -> bool:
+        return bool(self.flags & Flags.RA.value)
 
 
 class QName(Tuple[bytes]):

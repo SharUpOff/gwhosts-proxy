@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools~=68.0"]
+requires = ["setuptools~=75.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,26 +7,62 @@ name = "gwhosts-proxy"
 authors = [{name="SharUpOff", email = "sharupoff@efstudios.org"}]
 description = "DNS proxy/router for a specified list of hostnames"
 readme = "README.md"
-requires-python = ">=3.8, <3.13"
+license = {file = "LICENSE.md"}
+requires-python = ">=3.8, <=3.13"
 dependencies = ["pyroute2~=0.7.0"]
 version = "1.0.0"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Networking :: Firewalls",
+    "Topic :: Internet :: Name Service (DNS)",
+    "Topic :: Internet :: Proxy Servers",
+    "Framework :: tox",
+]
 
 [project.optional-dependencies]
-test = ["pytest~=7.0", "pytest-cov~=3.0"]
+test = ["pytest~=8.0", "pytest-mock~=3.0", "pytest-cov~=5.0"]
 
 [project.urls]
 homepage = "https://github.com/sharupoff/gwhosts-proxy"
 
 [tool.pytest.ini_options]
-addopts = "-ra -q --cov-report term-missing --cov gwhosts"
+pythonpath = [
+  "."
+]
+addopts = "-ra -q --cov-report term-missing --cov-append --cov gwhosts"
 
 [tool.ruff]
 line-length = 119
-target-version = "py38"
+indent-width = 4
+target-version = "py37"
 
-[tool.black]
-line-length = 119
-target-version = ["py38"]
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+explicit_package_bases = true
+install_types = true
+non_interactive = true
+exclude = ["env", "venv", "build"]
 
 [tool.setuptools.packages.find]
 include = ["gwhosts.*"]

@@ -6,22 +6,18 @@ from gwhosts.network import (
     IPAddress,
     IPBinary,
     Network,
-    ipv4_bytes_to_int,
-    ipv4_int_to_bytes,
-    ipv4_bytes_to_str,
-    ipv4_str_to_bytes,
-    ipv4_str_to_int,
-    ipv4_int_to_str,
+)
+from gwhosts.network.ipv6 import (
     ipv6_bytes_to_int,
     ipv6_int_to_bytes,
     ipv6_bytes_to_str,
     ipv6_str_to_bytes,
     ipv6_str_to_int,
     ipv6_int_to_str,
-    network_to_str,
-    str_to_network,
-    netmask_to_network_size,
-    network_size_to_netmask,
+    ipv6_network_to_str,
+    ipv6_str_to_network,
+    ipv6_netmask_to_network_size,
+    ipv6_network_size_to_netmask,
 )
 
 
@@ -29,46 +25,6 @@ class IPRepr(NamedTuple):
     number: IPBinary
     bytes: bytes
     string: IPAddress
-
-
-_IPV4_DATA = (
-    # randint(0, 2**32-1)
-    IPRepr(0xA4_BE_42_2F, b"\xa4\xbe\x42\x2f", "164.190.66.47"),
-    IPRepr(0xD3_16_23_F8, b"\xd3\x16\x23\xf8", "211.22.35.248"),
-    IPRepr(0x8B_0D_BE_B7, b"\x8b\x0d\xbe\xb7", "139.13.190.183"),
-    IPRepr(0x43_BC_F1_A8, b"\x43\xbc\xf1\xa8", "67.188.241.168"),
-    IPRepr(0xDD_8C_04_E5, b"\xdd\x8c\x04\xe5", "221.140.4.229"),
-)
-
-
-@pytest.mark.parametrize(("src", "dst"), ((ip.bytes, ip.number) for ip in _IPV4_DATA))
-def test_ipv4_bytes_to_int(src: bytes, dst: IPBinary) -> None:
-    assert ipv4_bytes_to_int(src) == dst
-
-
-@pytest.mark.parametrize(("src", "dst"), ((ip.number, ip.bytes) for ip in _IPV4_DATA))
-def test_ipv4_int_to_bytes(src: IPBinary, dst: bytes) -> None:
-    assert ipv4_int_to_bytes(src) == dst
-
-
-@pytest.mark.parametrize(("src", "dst"), ((ip.bytes, ip.string) for ip in _IPV4_DATA))
-def test_ipv4_bytes_to_str(src: bytes, dst: IPAddress) -> None:
-    assert ipv4_bytes_to_str(src) == dst
-
-
-@pytest.mark.parametrize(("src", "dst"), ((ip.string, ip.bytes) for ip in _IPV4_DATA))
-def test_ipv4_str_to_bytes(src: IPAddress, dst: bytes) -> None:
-    assert ipv4_str_to_bytes(src) == dst
-
-
-@pytest.mark.parametrize(("src", "dst"), ((ip.string, ip.number) for ip in _IPV4_DATA))
-def test_ipv4_str_to_int(src: IPAddress, dst: IPBinary) -> None:
-    assert ipv4_str_to_int(src) == dst
-
-
-@pytest.mark.parametrize(("src", "dst"), ((ip.number, ip.string) for ip in _IPV4_DATA))
-def test_ipv4_int_to_str(src: IPBinary, dst: IPAddress) -> None:
-    assert ipv4_int_to_str(src) == dst
 
 
 _IPV6_DATA = (
@@ -99,6 +55,7 @@ _IPV6_DATA = (
         string="8eb0:476f:53b6:a7df:d4de:12be:e9c2:5bdc",
     ),
 )
+
 
 @pytest.mark.parametrize(("src", "dst"), ((ip.bytes, ip.number) for ip in _IPV6_DATA))
 def test_ipv6_bytes_to_int(src: bytes, dst: IPBinary) -> None:
@@ -131,49 +88,66 @@ def test_ipv6_int_to_str(src: IPBinary, dst: IPAddress) -> None:
 
 
 _NETWORK_DATA = (
-    (Network(0x68_B9_1D_DC, 0xFFFFFFFF), "104.185.29.220/32"),
-    (Network(0x14_54_27_00, 0xFFFFFF00), "20.84.39.0/24"),
-    (Network(0xC7_17_00_00, 0xFFFF0000), "199.23.0.0/16"),
-    (Network(0x77_00_00_00, 0xFF000000), "119.0.0.0/8"),
+    (
+        Network(0x2A03_2880_F145_0082_FACE_B00C_0000_25DE, 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF),
+        "2a03:2880:f145:82:face:b00c:0:25de/128",
+    ),
+    (
+        Network(0x2A00_1450_4005_0800_0000_0000_0000_0000, 0xFFFF_FFFF_FFFF_FF00_0000_0000_0000_0000),
+        "2a00:1450:4005:800::/56",
+    ),
+    (
+        Network(0x2603_1030_0000_0000_0000_0000_0000_0000, 0xFFFF_FFFF_0000_0000_0000_0000_0000_0000),
+        "2603:1030::/32",
+    ),
 )
 
 
 @pytest.mark.parametrize(("network", "address"), _NETWORK_DATA)
-def test_network_to_str(network: Network, address: str) -> None:
-    assert network_to_str(network) == address
+def test_ipv6_network_to_str(network: Network, address: str) -> None:
+    assert ipv6_network_to_str(network) == address
 
 
-@pytest.mark.parametrize(("network", "address"), (
-    (Network(0x9B_65_04_EF, 0xFFFFFFFF), "155.101.4.239"),
-    *_NETWORK_DATA,
-))
-def test_str_to_network(network: Network, address: str) -> None:
-    assert str_to_network(address) == network
+@pytest.mark.parametrize(
+    ("network", "address"),
+    (
+        (
+            Network(0x99D0_E578_266F_3196_4BD7_F557_BAF7_4A6A, 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF),
+            "99d0:e578:266f:3196:4bd7:f557:baf7:4a6a",
+        ),
+        *_NETWORK_DATA,
+    ),
+)
+def test_ipv6_str_to_network(network: Network, address: str) -> None:
+    assert ipv6_str_to_network(address) == network
 
 
-@pytest.mark.parametrize("address", (
-    "19/09/2024",
-    "01/57/AM",
-))
-def test_not_a_network(address: str) -> None:
+@pytest.mark.parametrize(
+    "address",
+    (
+        "19/09/2024",
+        "01/57/AM",
+    ),
+)
+def test_ipv6_not_a_network(address: str) -> None:
     with pytest.raises(ValueError) as cast_error:
-        str_to_network(address)
+        ipv6_str_to_network(address)
 
     assert str(cast_error.value) == f"{address} is not a network address"
 
 
 _NETMASK_DATA = (
-    (32, 0xFFFFFFFF),
-    (24, 0xFFFFFF00),
-    (16, 0xFFFF0000),
-    (8, 0xFF000000),
+    (128, 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF),
+    (56, 0xFFFF_FFFF_FFFF_FF00_0000_0000_0000_0000),
+    (32, 0xFFFF_FFFF_0000_0000_0000_0000_0000_0000),
 )
 
+
 @pytest.mark.parametrize(("size", "mask"), _NETMASK_DATA)
-def test_netmask_to_network_size(size: int, mask: IPBinary) -> None:
-    assert netmask_to_network_size(mask) == size
+def test_ipv6_netmask_to_network_size(size: int, mask: IPBinary) -> None:
+    assert ipv6_netmask_to_network_size(mask) == size
 
 
 @pytest.mark.parametrize(("size", "mask"), _NETMASK_DATA)
-def test_network_size_to_netmask(size: int, mask: IPBinary) -> None:
-    assert network_size_to_netmask(size) == mask
+def test_ipv6_network_size_to_netmask(size: int, mask: IPBinary) -> None:
+    assert ipv6_network_size_to_netmask(size) == mask

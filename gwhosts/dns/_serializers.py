@@ -1,7 +1,7 @@
 from dataclasses import astuple
 from struct import pack
 
-from gwhosts.dns._types import Addition, Answer, Authority, DNSData, Header, QName, Question
+from ._types import Addition, Answer, Authority, DNSData, Header, QName, Question
 
 
 def _encode_qname(qname: QName):

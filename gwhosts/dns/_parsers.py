@@ -3,7 +3,7 @@ from typing import BinaryIO, Iterable, Tuple
 
 from ._exceptions import DNSParserRecursionError
 from ._struct import unpack
-from ._types import Addition, Answer, Authority, DNSData, Header, QName, Question
+from ._types import Addition, Answer, Authority, DNSData, Header, QName, Question, RRType
 
 
 def _parse_header(buffer: BinaryIO) -> Header:
@@ -48,7 +48,7 @@ def _parse_question(buffer: BinaryIO) -> Question:
     return Question(name, rr_type, rr_class)
 
 
-def _parse_resource(buffer: BinaryIO) -> Tuple[QName, int, int, int, int, bytes]:
+def _parse_resource(buffer: BinaryIO) -> Tuple[QName, RRType, int, int, int, bytes]:
     name = _parse_qname(buffer)
     rr_type, rr_class, ttl, rr_data_length = unpack("!HHIH", buffer.read(10))
     return name, rr_type, rr_class, ttl, rr_data_length, buffer.read(rr_data_length)

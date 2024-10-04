@@ -1,9 +1,9 @@
 from typing import Iterable, Iterator
 
-from gwhosts.network._types import Network, NETMASK_MIN
+from ._types import Network, NetworkSize
 
 
-def reduce_subnets(addresses: Iterable[Network]) -> Iterator[Network]:
+def _reduce_subnets(addresses: Iterable[Network], netmask_min: NetworkSize) -> Iterator[Network]:
     addresses = sorted(addresses)
     length = len(addresses)
     idx = 0
@@ -19,7 +19,7 @@ def reduce_subnets(addresses: Iterable[Network]) -> Iterator[Network]:
         while idx < length:
             _address = addresses[idx].address
 
-            while _netmask ^ NETMASK_MIN:
+            while _netmask ^ netmask_min:
                 if _address & _netmask == _netaddr:
                     netaddr, netmask = _netaddr, _netmask
                     break

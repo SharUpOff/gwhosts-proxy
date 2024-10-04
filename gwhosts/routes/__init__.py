@@ -1,3 +1,3 @@
-from gwhosts.routes._netlink import Netlink
+from ._netlink import Netlink
 
 __all__ = ["Netlink"]

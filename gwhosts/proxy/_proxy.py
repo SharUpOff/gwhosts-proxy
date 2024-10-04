@@ -5,30 +5,40 @@ from collections import deque
 from functools import lru_cache
 from logging import Logger
 from select import select
-from socket import socket
+from socket import socket, AF_INET, AF_INET6
 from tempfile import mktemp
 from time import time
-from typing import Callable, Dict, Iterator, List, Set, Tuple
+from typing import Callable, Dict, Iterator, List, Set, Tuple, Optional
 
-from gwhosts.dns import QName, DNSParserError, RRType, parse, remove_ipv6, serialize
-from gwhosts.network import (
-    NETMASK_MAX,
+from ._types import DNSDataMessage, RTMEvent
+from ..dns import QName, DNSParserError, RRType, parse, serialize, qname_to_str, answer_to_str
+from ..network import (
     Address,
     Datagram,
     ExpiringAddress,
     IPAddress,
     IPBinary,
     Network,
+    NetworkSize,
     UDPSocket,
-    ipv4_bytes_to_int,
-    ipv4_int_to_str,
-    ipv4_str_to_int,
-    network_size_to_netmask,
-    network_to_str,
-    reduce_subnets,
 )
-from gwhosts.proxy._types import DNSDataMessage, RTMEvent
-from gwhosts.routes import Netlink
+from ..network.ipv4 import (
+    IPV4_NETMASK_MAX,
+    ipv4_bytes_to_int,
+    ipv4_str_to_int,
+    ipv4_network_size_to_netmask,
+    ipv4_network_to_str,
+    ipv4_reduce_subnets,
+)
+from ..network.ipv6 import (
+    IPV6_NETMASK_MAX,
+    ipv6_bytes_to_int,
+    ipv6_str_to_int,
+    ipv6_network_size_to_netmask,
+    ipv6_network_to_str,
+    ipv6_reduce_subnets,
+)
+from ..routes import Netlink
 
 
 class DNSProxy:
@@ -37,11 +47,13 @@ class DNSProxy:
         gateway: IPAddress,
         hostnames: Set[QName],
         logger: Logger,
+        ipv6_gateway: Optional[IPAddress] = None,
         to_addr: Address = Address("127.0.0.1", 8053),
         buff_size: int = 1024,
         timeout_in_seconds: int = 5,
     ) -> None:
-        self._gateway = gateway
+        self._ipv4_gateway = gateway
+        self._ipv6_gateway = ipv6_gateway
         self._to_addr = to_addr
         self._buff_size = buff_size
         self._timeout_in_seconds = timeout_in_seconds
@@ -52,26 +64,35 @@ class DNSProxy:
         self._regular_pool: Dict[UDPSocket, ExpiringAddress] = {}
         self._routed_pool: Dict[UDPSocket, ExpiringAddress] = {}
         self._queries_queue: deque = deque()
-        self._addresses: Set[IPAddress] = set()
-        self._subnets: Set[Network] = set()
-        self._netlink_event_handlers: Dict[RTMEvent, Callable] = {
-            RTMEvent.NEW_ROUTE.value: self._process_rtm_new_route,
-            RTMEvent.DEL_ROUTE.value: self._process_rtm_del_route,
+        self._ipv4_addresses: Set[IPAddress] = set()
+        self._ipv4_subnets: Set[Network] = set()
+        self._ipv6_addresses: Set[IPAddress] = set()
+        self._ipv6_subnets: Set[Network] = set()
+        self._netlink_event_handlers: Dict[RTMEvent, Dict[Tuple[int, str], Callable]] = {
+            RTMEvent.NEW_ROUTE: {
+                (AF_INET, self._ipv4_gateway): self._ipv4_process_rtm_new_route,
+                (AF_INET6, self._ipv6_gateway): self._ipv6_process_rtm_new_route,
+            },
+            RTMEvent.DEL_ROUTE: {
+                (AF_INET, self._ipv4_gateway): self._ipv4_process_rtm_del_route,
+                (AF_INET6, self._ipv6_gateway): self._ipv6_process_rtm_del_route,
+            },
         }
-        self._update_routes_queue: List[Tuple[Dict[Network, bool], List[Datagram]]] = []
+        self._netlink_to_network = {
+            AF_INET: self._ipv4_netlink_to_network,
+            AF_INET6: self._ipv6_netlink_to_network,
+        }
 
     @property
     def _open_files_count(self) -> int:
-        """ :return: The number of open file descriptors
-        """
+        """:return: The number of open file descriptors"""
         open_files = os.listdir("/proc/self/fd")
 
         return len(open_files)
 
     @property
     def _max_open_files_count(self) -> int:
-        """ :return: Current soft limit on the number of open file descriptors
-        """
+        """:return: Current soft limit on the number of open file descriptors"""
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
 
         return soft
@@ -89,10 +110,6 @@ class DNSProxy:
 
         return _socket
 
-    @property
-    def subnets(self) -> Set[Network]:
-        return self._subnets
-
     def _hostname_exists(self, hostname: QName) -> bool:
         for level in range(len(hostname)):
             if hostname[level:] in self._hostnames:
@@ -101,43 +118,61 @@ class DNSProxy:
 
         return False
 
-    @lru_cache(maxsize=4094)
-    def _ip_in_subnets(self, address: IPBinary) -> bool:
-        return any(address & subnet.mask == subnet.address for subnet in self.subnets)
+    @property
+    def ipv4_subnets(self) -> Set[Network]:
+        return self._ipv4_subnets
 
-    def _update_subnets(self, addresses: Set[Network]) -> dict[Network, bool]:
-        subnets = set(reduce_subnets(addresses.union(self.subnets)))
-        updates = self._subnets.symmetric_difference(subnets)
+    @lru_cache(maxsize=4094)
+    def _ipv4_in_subnets(self, address: IPBinary) -> bool:
+        return any(address & subnet.mask == subnet.address for subnet in self.ipv4_subnets)
+
+    def _ipv4_update_subnets(self, addresses: Set[Network]) -> Dict[Network, bool]:
+        subnets = set(ipv4_reduce_subnets(addresses.union(self.ipv4_subnets)))
+        updates = self._ipv4_subnets.symmetric_difference(subnets)
 
         return {subnet: subnet in subnets for subnet in updates}
 
-    def _update_routes(self, queue: List[DNSDataMessage]) -> dict[Network, bool]:
-        addresses = set()
+    @property
+    def ipv6_subnets(self) -> Set[Network]:
+        return self._ipv6_subnets
+
+    @lru_cache(maxsize=4094)
+    def _ipv6_in_subnets(self, address: IPBinary) -> bool:
+        return any(address & subnet.mask == subnet.address for subnet in self.ipv6_subnets)
+
+    def _ipv6_update_subnets(self, addresses: Set[Network]) -> Dict[Network, bool]:
+        subnets = set(ipv6_reduce_subnets(addresses.union(self.ipv6_subnets)))
+        updates = self._ipv6_subnets.symmetric_difference(subnets)
+
+        return {subnet: subnet in subnets for subnet in updates}
+
+    def _update_routes(self, queue: List[DNSDataMessage]) -> Tuple[Dict[Network, bool], Dict[Network, bool]]:
+        ipv4_addresses = set()
+        ipv6_addresses = set()
 
         for response, addr in queue:
             for answer in response.answers:
                 if answer.rr_type == RRType.A.value:
                     address = ipv4_bytes_to_int(answer.rr_data)
 
-                    self._logger.info(f"DNS: {b'.'.join(answer.name).decode('utf8')} -> {ipv4_int_to_str(address)}")
+                    if not self._ipv4_in_subnets(address):
+                        ipv4_addresses.add(Network(address, IPV4_NETMASK_MAX))
 
-                else:
-                    continue
+                elif answer.rr_type == RRType.AAAA.value:
+                    address = ipv6_bytes_to_int(answer.rr_data)
 
-                if self._ip_in_subnets(address):
-                    continue
+                    if not self._ipv6_in_subnets(address):
+                        ipv6_addresses.add(Network(address, IPV6_NETMASK_MAX))
 
-                addresses.add(Network(address, NETMASK_MAX))
-
-        if addresses:
-            return self._update_subnets(addresses)
-
-        return {}
+        return (
+            self._ipv4_update_subnets(ipv4_addresses) if ipv4_addresses else {},
+            self._ipv6_update_subnets(ipv6_addresses) if ipv6_addresses else {},
+        )
 
     def _process_queued_queries(self) -> int:
-        """ Process queued queries and return the number of remaining ones
+        """Process queued queries and return the number of remaining ones
 
-            :return: Number of remaining queries
+        :return: Number of remaining queries
         """
         queue_size = len(self._queries_queue)
         available_file_descriptors_count = self._max_open_files_count - self._open_files_count
@@ -157,7 +192,7 @@ class DNSProxy:
             self._logger.error("Failed to parse DNS query")
 
             try:
-                with gzip.open(mktemp(prefix="dns.query.", suffix=".gz"), 'w') as dump:
+                with gzip.open(mktemp(prefix="dns.query.", suffix=".gz"), "w") as dump:
                     dump.write(data)
 
             except Exception as dump_error:
@@ -178,10 +213,13 @@ class DNSProxy:
             self._routed_pool[remote] = ExpiringAddress(addr, time())
 
             for hostname in domains:
-                self._logger.info(f"DNS: [{query.header.id}] -> {b'.'.join(hostname).decode('utf8')}")
+                self._logger.info(f"DNS: Q[{query.header.id}] -> {qname_to_str(hostname)} (P)")
 
         else:
             self._regular_pool[remote] = ExpiringAddress(addr, time())
+
+            for hostname in domains:
+                self._logger.info(f"DNS: Q[{query.header.id}] -> {qname_to_str(hostname)}")
 
     @staticmethod
     def _sanitize_free_pool(pool: List[socket]) -> None:
@@ -221,7 +259,7 @@ class DNSProxy:
                 self._logger.error("Failed to parse DNS response")
 
                 try:
-                    with gzip.open(mktemp(prefix="dns.response.", suffix=".gz"), 'w') as dump:
+                    with gzip.open(mktemp(prefix="dns.response.", suffix=".gz"), "w") as dump:
                         dump.write(data)
 
                 except Exception as dump_error:
@@ -232,33 +270,67 @@ class DNSProxy:
                     self._logger.error(f"To reproduce, run: zcat {dump.name} | python -m gwhosts.dns.parser")
 
             else:
+                for answer in response.answers:
+                    self._logger.info(f"DNS: R[{response.header.id}] {answer_to_str(answer)}")
+
                 yield DNSDataMessage(response, addr)
 
     @staticmethod
     def _prepare_routed_responses(data_messages: List[DNSDataMessage]) -> Iterator[Datagram]:
-        return (Datagram(serialize(remove_ipv6(data)), addr) for data, addr in data_messages)
+        return (Datagram(serialize(data), addr) for data, addr in data_messages)
 
     @staticmethod
     def _send_responses(queue: List[Datagram], udp: UDPSocket) -> None:
         for data, addr in queue:
             udp.sendto(data, addr)
 
-    def _process_rtm_new_route(self, network: Network) -> None:
-        """New route is added"""
-        self._subnets.add(network)
-        self._logger.info(f"DNS: network added {network_to_str(network)}")
+    @staticmethod
+    def _ipv4_netlink_to_network(address: IPAddress, length: NetworkSize) -> Network:
+        return Network(
+            address=ipv4_str_to_int(address),
+            mask=ipv4_network_size_to_netmask(length),
+        )
 
-    def _process_rtm_del_route(self, network: Network) -> None:
-        """An existing route is deleted"""
+    def _ipv4_process_rtm_new_route(self, network: Network) -> None:
+        """New IPv4 route is added"""
+        self._ipv4_subnets.add(network)
+        self._logger.info(f"DNS: network added {ipv4_network_to_str(network)}")
+
+    def _ipv4_process_rtm_del_route(self, network: Network) -> None:
+        """An existing IPv4 route is deleted"""
         try:
-            self._subnets.remove(network)
+            self._ipv4_subnets.remove(network)
 
         except KeyError as e:
             self._logger.exception(e)
-            self._logger.info(f"DNS: network does not exists {network_to_str(network)}")
+            self._logger.info(f"DNS: network does not exists {ipv4_network_to_str(network)}")
 
         else:
-            self._logger.info(f"DNS: network deleted {network_to_str(network)}")
+            self._logger.info(f"DNS: network deleted {ipv4_network_to_str(network)}")
+
+    @staticmethod
+    def _ipv6_netlink_to_network(address: IPAddress, length: NetworkSize) -> Network:
+        return Network(
+            address=ipv6_str_to_int(address),
+            mask=ipv6_network_size_to_netmask(length),
+        )
+
+    def _ipv6_process_rtm_new_route(self, network: Network) -> None:
+        """New IPv6 route is added"""
+        self._ipv6_subnets.add(network)
+        self._logger.info(f"DNS: network added {ipv6_network_to_str(network)}")
+
+    def _ipv6_process_rtm_del_route(self, network: Network) -> None:
+        """An IPv6 existing route is deleted"""
+        try:
+            self._ipv6_subnets.remove(network)
+
+        except KeyError as e:
+            self._logger.exception(e)
+            self._logger.info(f"DNS: network does not exists {ipv6_network_to_str(network)}")
+
+        else:
+            self._logger.info(f"DNS: network deleted {ipv6_network_to_str(network)}")
 
     def _process_netlink_message(self, message: dict) -> None:
         event = message["event"]
@@ -267,13 +339,18 @@ class DNSProxy:
             attrs = dict(message["attrs"])
 
             if "RTA_GATEWAY" in attrs:
-                if attrs["RTA_GATEWAY"] == self._gateway:
-                    network = Network(
-                        address=ipv4_str_to_int(attrs["RTA_DST"]),
-                        mask=network_size_to_netmask(message["dst_len"]),
-                    )
+                event_handlers = self._netlink_event_handlers[event]
+                family = message["family"]
 
-                    self._netlink_event_handlers[event](network)
+                if family in self._netlink_to_network:
+                    gateway = attrs["RTA_GATEWAY"]
+
+                    if (family, gateway) in event_handlers:
+                        network = self._netlink_to_network[family](
+                            address=attrs["RTA_DST"],
+                            length=message["dst_len"],
+                        )
+                        event_handlers[(family, gateway)](network)
 
     def listen(self, addr: Address) -> None:
         with Netlink() as netlink:
@@ -281,7 +358,9 @@ class DNSProxy:
             self._input_pool.append(netlink)
 
             self._logger.info("DNS: Getting routed subnets...")
-            netlink.get_ipv4_routes()
+
+            netlink.ipv4_get_routes()
+            netlink.ipv6_get_routes()
 
             with UDPSocket() as udp:
                 udp.bind(addr)
@@ -329,15 +408,21 @@ class DNSProxy:
                         if routed_responses:
                             dns_data_messages = list(self._parse_responses(routed_responses))
 
-                            updates = self._update_routes(dns_data_messages)
+                            ipv4_updates, ipv6_updates = self._update_routes(dns_data_messages)
 
                             ready_responses.extend(self._prepare_routed_responses(dns_data_messages))
 
-                            for network, exist in updates.items():
+                            for network, exist in ipv4_updates.items():
                                 if exist:
-                                    netlink.add_ipv4_route(network, self._gateway)
+                                    netlink.ipv4_add_route(network, self._ipv4_gateway)
                                 else:
-                                    netlink.del_ipv4_route(network, self._gateway)
+                                    netlink.ipv4_del_route(network, self._ipv4_gateway)
+
+                            for network, exist in ipv6_updates.items():
+                                if exist:
+                                    netlink.ipv6_add_route(network, self._ipv6_gateway)
+                                else:
+                                    netlink.ipv6_del_route(network, self._ipv6_gateway)
 
                         if ready_responses:
                             self._send_responses(ready_responses, udp)

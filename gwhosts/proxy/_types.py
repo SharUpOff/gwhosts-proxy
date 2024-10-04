@@ -1,14 +1,20 @@
 from enum import Enum
+from socket import AF_INET, AF_INET6
 from typing import NamedTuple
 
-from gwhosts.dns import DNSData
-from gwhosts.network import Address
+from ..dns import DNSData
+from ..network import Address
 
 
 class RTMEvent(Enum):
     NEW_ROUTE: str = "RTM_NEWROUTE"
     DEL_ROUTE: str = "RTM_DELROUTE"
     GET_ROUTE: str = "RTM_GETROUTE"
+
+
+class AddressFamily(Enum):
+    AF_INET: int = AF_INET
+    AF_INET6: int = AF_INET6
 
 
 class DNSDataMessage(NamedTuple):
