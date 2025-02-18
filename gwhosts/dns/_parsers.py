@@ -5,27 +5,35 @@ from ._exceptions import DNSParserRecursionError
 from ._struct import unpack
 from ._types import Addition, Answer, Authority, DNSData, Header, QName, Question, RRType
 
+# [https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.4]
+_MAX_DOMAIN_NAME_WIRE_OCTETS: int = 255
+_MAX_COMPRESSION_POINTERS: int = (_MAX_DOMAIN_NAME_WIRE_OCTETS + 1) // 2 - 2
+
 
 def _parse_header(buffer: BinaryIO) -> Header:
     return Header(*unpack("!HHHHHH", buffer.read(12)))
 
 
-def _parse_compressed_name(length: int, buffer: BinaryIO) -> Iterable[bytes]:
+def _parse_compressed_name(length: int, buffer: BinaryIO, depth: int) -> Iterable[bytes]:
     pointer_bytes = bytes([length & 0b0011_1111]) + buffer.read(1)
     pointer = unpack("!H", pointer_bytes)[0]
     current_pos = buffer.tell()
     buffer.seek(pointer)
-    for name in _parse_name(buffer):
+    for name in _parse_name(buffer, depth):
         yield name
 
     buffer.seek(current_pos)
 
 
-def _parse_name(buffer: BinaryIO) -> Iterable[bytes]:
+def _parse_name(buffer: BinaryIO, depth: int) -> Iterable[bytes]:
     while (length := (buffer.read(1) or b"\0x00")[0]) != 0:
         if length & 0b1100_0000:
-            for name in _parse_compressed_name(length, buffer):
+            if depth > _MAX_COMPRESSION_POINTERS:
+                raise DNSParserRecursionError(f"The limit of {_MAX_COMPRESSION_POINTERS} pointers has been reached")
+
+            for name in _parse_compressed_name(length, buffer, depth + 1):
                 yield name
+
             break
 
         else:
@@ -33,13 +41,7 @@ def _parse_name(buffer: BinaryIO) -> Iterable[bytes]:
 
 
 def _parse_qname(buffer: BinaryIO) -> QName:
-    try:
-        name = _parse_name(buffer)
-
-    except RecursionError as e:
-        raise DNSParserRecursionError from e
-
-    return QName(name)
+    return QName(_parse_name(buffer, 0))
 
 
 def _parse_question(buffer: BinaryIO) -> Question:
