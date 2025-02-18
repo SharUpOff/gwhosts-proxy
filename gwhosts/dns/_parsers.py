@@ -2,7 +2,7 @@ from io import BytesIO
 from typing import BinaryIO, Iterable, Tuple
 
 from ._exceptions import DNSParserRecursionError
-from ._struct import unpack
+from ._struct import unpack_bytes, unpack_buffer
 from ._types import Addition, Answer, Authority, DNSData, Header, QName, Question, RRType
 
 # [https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.4]
@@ -11,12 +11,12 @@ _MAX_COMPRESSION_POINTERS: int = (_MAX_DOMAIN_NAME_WIRE_OCTETS + 1) // 2 - 2
 
 
 def _parse_header(buffer: BinaryIO) -> Header:
-    return Header(*unpack("!HHHHHH", buffer.read(12)))
+    return Header(*unpack_buffer("!HHHHHH", buffer))
 
 
 def _parse_compressed_name(length: int, buffer: BinaryIO, depth: int) -> Iterable[bytes]:
     pointer_bytes = bytes([length & 0b0011_1111]) + buffer.read(1)
-    pointer = unpack("!H", pointer_bytes)[0]
+    pointer = unpack_bytes("!H", pointer_bytes)[0]
     current_pos = buffer.tell()
     buffer.seek(pointer)
     for name in _parse_name(buffer, depth):
@@ -46,13 +46,13 @@ def _parse_qname(buffer: BinaryIO) -> QName:
 
 def _parse_question(buffer: BinaryIO) -> Question:
     name = _parse_qname(buffer)
-    rr_type, rr_class = unpack("!HH", buffer.read(4))
+    rr_type, rr_class = unpack_buffer("!HH", buffer)
     return Question(name, rr_type, rr_class)
 
 
 def _parse_resource(buffer: BinaryIO) -> Tuple[QName, RRType, int, int, int, bytes]:
     name = _parse_qname(buffer)
-    rr_type, rr_class, ttl, rr_data_length = unpack("!HHIH", buffer.read(10))
+    rr_type, rr_class, ttl, rr_data_length = unpack_buffer("!HHIH", buffer)
     return name, rr_type, rr_class, ttl, rr_data_length, buffer.read(rr_data_length)
 
 
