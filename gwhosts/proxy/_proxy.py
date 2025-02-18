@@ -10,7 +10,7 @@ from time import time
 from typing import Callable, Dict, Iterator, List, Set, Tuple, Optional
 
 from ._types import DNSDataMessage, RTMEvent
-from ..dns import QName, DNSParserError, RRType, parse, serialize, qname_to_str, answer_to_str
+from ..dns import QName, DNSParserError, RRType, parse, qname_to_str, answer_to_str
 from ..network import (
     Address,
     Datagram,
@@ -260,10 +260,6 @@ class DNSProxy:
                 yield DNSDataMessage(response, addr)
 
     @staticmethod
-    def _prepare_routed_responses(data_messages: List[DNSDataMessage]) -> Iterator[Datagram]:
-        return (Datagram(serialize(data), addr) for data, addr in data_messages)
-
-    @staticmethod
     def _send_responses(queue: List[Datagram], udp: UDPSocket) -> None:
         for data, addr in queue:
             udp.sendto(data, addr)
@@ -394,7 +390,7 @@ class DNSProxy:
 
                             ipv4_updates, ipv6_updates = self._update_routes(dns_data_messages)
 
-                            ready_responses.extend(self._prepare_routed_responses(dns_data_messages))
+                            ready_responses.extend(routed_responses)
 
                             for network, exist in ipv4_updates.items():
                                 if exist:
