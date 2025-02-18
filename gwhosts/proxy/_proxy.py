@@ -68,11 +68,11 @@ class DNSProxy:
         self._ipv6_addresses: Set[IPAddress] = set()
         self._ipv6_subnets: Set[Network] = set()
         self._netlink_event_handlers: Dict[RTMEvent, Dict[Tuple[int, str], Callable]] = {
-            RTMEvent.NEW_ROUTE: {
+            RTMEvent.NEW_ROUTE.value: {
                 (AF_INET, self._ipv4_gateway): self._ipv4_process_rtm_new_route,
                 (AF_INET6, self._ipv6_gateway): self._ipv6_process_rtm_new_route,
             },
-            RTMEvent.DEL_ROUTE: {
+            RTMEvent.DEL_ROUTE.value: {
                 (AF_INET, self._ipv4_gateway): self._ipv4_process_rtm_del_route,
                 (AF_INET6, self._ipv6_gateway): self._ipv6_process_rtm_del_route,
             },
