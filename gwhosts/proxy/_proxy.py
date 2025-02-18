@@ -7,7 +7,7 @@ from logging import Logger
 from select import select
 from socket import socket, AF_INET, AF_INET6
 from time import time
-from typing import Callable, Dict, Iterator, List, Set, Tuple, Optional
+from typing import Callable, Dict, Iterable, Iterator, List, Set, Tuple, Optional
 
 from ._types import DNSDataMessage, RTMEvent
 from ..dns import QName, DNSParserError, RRType, parse, qname_to_str, answer_to_str
@@ -145,7 +145,7 @@ class DNSProxy:
 
         return {subnet: subnet in subnets for subnet in updates}
 
-    def _update_routes(self, queue: List[DNSDataMessage]) -> Tuple[Dict[Network, bool], Dict[Network, bool]]:
+    def _update_routes(self, queue: Iterable[DNSDataMessage]) -> Tuple[Dict[Network, bool], Dict[Network, bool]]:
         ipv4_addresses = set()
         ipv6_addresses = set()
 
@@ -386,7 +386,7 @@ class DNSProxy:
                         self._sanitize_free_pool(self._free_pool)
 
                         if routed_responses:
-                            dns_data_messages = list(self._parse_responses(routed_responses))
+                            dns_data_messages = self._parse_responses(routed_responses)
 
                             ipv4_updates, ipv6_updates = self._update_routes(dns_data_messages)
 
