@@ -1,5 +1,6 @@
 from dataclasses import astuple
 from struct import pack
+from typing import Union
 
 from ._types import Addition, Answer, Authority, DNSData, Header, QName, Question
 
@@ -22,8 +23,11 @@ def _serialize_resource(
     rr_class: int,
     ttl: int,
     rr_data_length: int,
-    rr_data: bytes,
+    rr_data: Union[QName, bytes],
 ) -> bytes:
+    if isinstance(rr_data, QName):
+        rr_data = _encode_qname(rr_data)
+
     return _encode_qname(name) + pack("!HHIH", rr_type, rr_class, ttl, rr_data_length) + rr_data
 
 

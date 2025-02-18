@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 
 class Flags(Enum):
@@ -103,7 +103,7 @@ class _RR(Question):
 
     ttl: int
     rr_data_length: int
-    rr_data: bytes
+    rr_data: Union[QName, bytes]
 
 
 class Answer(_RR):

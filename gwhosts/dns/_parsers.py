@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import BinaryIO, Iterable, Tuple
+from typing import BinaryIO, Iterable, Tuple, Union
 
 from ._exceptions import DNSParserRecursionError
 from ._struct import unpack_bytes, unpack_buffer
@@ -50,10 +50,17 @@ def _parse_question(buffer: BinaryIO) -> Question:
     return Question(name, rr_type, rr_class)
 
 
-def _parse_resource(buffer: BinaryIO) -> Tuple[QName, RRType, int, int, int, bytes]:
+def _parse_resource(buffer: BinaryIO) -> Tuple[QName, RRType, int, int, int, Union[QName, bytes]]:
     name = _parse_qname(buffer)
     rr_type, rr_class, ttl, rr_data_length = unpack_buffer("!HHIH", buffer)
-    return name, rr_type, rr_class, ttl, rr_data_length, buffer.read(rr_data_length)
+
+    if rr_type == RRType.CNAME.value:
+        rr_data = _parse_qname(buffer)
+
+    else:
+        rr_data = buffer.read(rr_data_length)
+
+    return name, rr_type, rr_class, ttl, rr_data_length, rr_data
 
 
 def _parse_answer(buffer: BinaryIO) -> Answer:
@@ -86,7 +93,3 @@ def _parse(buffer: BytesIO) -> DNSData:
 
 def parse(data: bytes) -> DNSData:
     return _parse(_bytes_to_buffer(data))
-
-
-def parse_qname(data: bytes) -> QName:
-    return _parse_qname(_bytes_to_buffer(data))

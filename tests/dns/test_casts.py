@@ -12,9 +12,9 @@ from gwhosts.dns import Answer, QName, RRType, answer_to_str
                 rr_class=1,
                 ttl=810,
                 rr_data_length=22,
-                rr_data=b"\x0ayoutube-ui\x01l\x06google\xc0\x18",
+                rr_data=QName((b"youtube-ui", b"l", b"google", b"com")),
             ),
-            "www.youtube.com -> youtube-ui.l.google",
+            "www.youtube.com -> youtube-ui.l.google.com",
         ),
         (
             Answer(
