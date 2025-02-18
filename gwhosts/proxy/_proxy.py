@@ -337,7 +337,15 @@ class DNSProxy:
             netlink.bind()
             self._input_pool.append(netlink)
 
-            self._logger.info("DNS: Getting routed subnets...")
+            self._logger.info(f"DNS: loading existing IPv4 routes via {self._ipv4_gateway}...")
+
+            for _message in netlink.get_routes(family=AF_INET):
+                self._process_netlink_message(_message)
+
+            self._logger.info(f"DNS: loading existing IPv6 routes via {self._ipv6_gateway}...")
+
+            for _message in netlink.get_routes(family=AF_INET6):
+                self._process_netlink_message(_message)
 
             netlink.ipv4_get_routes()
             netlink.ipv6_get_routes()
