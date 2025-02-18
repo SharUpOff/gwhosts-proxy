@@ -1,7 +1,7 @@
 from io import BytesIO
 from typing import BinaryIO, Iterable, Tuple, Union
 
-from ._exceptions import DNSParserRecursionError
+from ._exceptions import DNSParserError, DNSParserRecursionError
 from ._struct import unpack_bytes, unpack_buffer
 from ._types import Addition, Answer, Authority, DNSData, Header, QName, Question, RRType
 
@@ -92,4 +92,8 @@ def _parse(buffer: BytesIO) -> DNSData:
 
 
 def parse(data: bytes) -> DNSData:
-    return _parse(_bytes_to_buffer(data))
+    try:
+        return _parse(_bytes_to_buffer(data))
+
+    except Exception as any_exception:
+        raise DNSParserError from any_exception
