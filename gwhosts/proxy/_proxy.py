@@ -1,12 +1,11 @@
-import gzip
 import os
 import resource
+from base64 import b64encode
 from collections import deque
 from functools import lru_cache
 from logging import Logger
 from select import select
 from socket import socket, AF_INET, AF_INET6
-from tempfile import mktemp
 from time import time
 from typing import Callable, Dict, Iterator, List, Set, Tuple, Optional
 
@@ -182,25 +181,20 @@ class DNSProxy:
 
         return len(self._queries_queue)
 
+    def _log_how_to_reproduce(self, data: bytes) -> None:
+        b64data = b64encode(data).decode("utf8")
+        self._logger.error("To reproduce, run:")
+        self._logger.error(f"echo -n '{b64data}' | python -m base64 -d | python -m gwhosts.dns.parser")
+
     def _route_request(self, datagram: Datagram) -> None:
         data, addr = datagram
 
         try:
             query = parse(data)
 
-        except DNSParserError as parser_error:
+        except DNSParserError:
             self._logger.error("Failed to parse DNS query")
-
-            try:
-                with gzip.open(mktemp(prefix="dns.query.", suffix=".gz"), "w") as dump:
-                    dump.write(data)
-
-            except Exception as dump_error:
-                self._logger.exception(parser_error)
-                self._logger.exception(dump_error)
-
-            else:
-                self._logger.error(f"To reproduce, run: zcat {dump.name} | python -m gwhosts.dns.parser")
+            self._log_how_to_reproduce(data)
 
             return
 
@@ -255,19 +249,9 @@ class DNSProxy:
             try:
                 response = parse(data)
 
-            except DNSParserError as parser_error:
+            except DNSParserError:
                 self._logger.error("Failed to parse DNS response")
-
-                try:
-                    with gzip.open(mktemp(prefix="dns.response.", suffix=".gz"), "w") as dump:
-                        dump.write(data)
-
-                except Exception as dump_error:
-                    self._logger.exception(parser_error)
-                    self._logger.exception(dump_error)
-
-                else:
-                    self._logger.error(f"To reproduce, run: zcat {dump.name} | python -m gwhosts.dns.parser")
+                self._log_how_to_reproduce(data)
 
             else:
                 for answer in response.answers:
