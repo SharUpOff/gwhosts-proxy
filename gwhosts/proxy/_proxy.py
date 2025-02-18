@@ -5,6 +5,7 @@ from collections import deque
 from functools import lru_cache
 from logging import Logger
 from select import select
+from signal import signal, SIGHUP
 from socket import socket, AF_INET, AF_INET6
 from time import time
 from typing import Callable, Dict, Iterable, Iterator, List, Set, Tuple, Optional
@@ -347,8 +348,20 @@ class DNSProxy:
             for _message in netlink.get_routes(family=AF_INET6):
                 self._process_netlink_message(_message)
 
-            netlink.ipv4_get_routes()
-            netlink.ipv6_get_routes()
+            def _restore_routes(*_args, **_kwargs) -> None:
+                self._logger.info(f"DNS: restoring IPv4 routes via {self._ipv4_gateway}...")
+
+                for _network in self._ipv4_subnets:
+                    self._logger.info(f"DNS: {ipv4_network_to_str(_network)} -> {self._ipv4_gateway}")
+                    netlink.ipv4_add_route(_network, self._ipv4_gateway)
+
+                self._logger.info(f"DNS: restoring IPv6 routes via {self._ipv6_gateway}...")
+
+                for _network in self._ipv6_subnets:
+                    self._logger.info(f"DNS: {ipv6_network_to_str(_network)} -> {self._ipv6_gateway}")
+                    netlink.ipv6_add_route(_network, self._ipv6_gateway)
+
+            signal(SIGHUP, _restore_routes)
 
             with UDPSocket() as udp:
                 udp.bind(addr)
