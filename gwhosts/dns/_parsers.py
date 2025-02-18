@@ -26,7 +26,7 @@ def _parse_compressed_name(length: int, buffer: BinaryIO, depth: int) -> Iterabl
 
 
 def _parse_name(buffer: BinaryIO, depth: int) -> Iterable[bytes]:
-    while (length := (buffer.read(1) or b"\0x00")[0]) != 0:
+    while (length := (buffer.read(1) or b"\x00")[0]) != 0:
         if length & 0b1100_0000:
             if depth > _MAX_COMPRESSION_POINTERS:
                 raise DNSParserRecursionError(f"The limit of {_MAX_COMPRESSION_POINTERS} pointers has been reached")
