@@ -12,3 +12,7 @@ class DNSParserUnpackError(DNSParserError):
 
 class DNSParserRecursionError(DNSParserError):
     pass
+
+
+class DNSParserInvalidLabelLengthError(DNSParserError):
+    pass

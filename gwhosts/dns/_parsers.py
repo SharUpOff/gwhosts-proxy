@@ -1,13 +1,15 @@
 from io import BytesIO
 from typing import BinaryIO, Iterable, Tuple, Union
 
-from ._exceptions import DNSParserError, DNSParserRecursionError
+from ._exceptions import DNSParserError, DNSParserRecursionError, DNSParserInvalidLabelLengthError
 from ._struct import unpack_bytes, unpack_buffer
 from ._types import Addition, Answer, Authority, DNSData, Header, QName, Question, RRType
 
 # [https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.4]
-_MAX_DOMAIN_NAME_WIRE_OCTETS: int = 255
-_MAX_COMPRESSION_POINTERS: int = (_MAX_DOMAIN_NAME_WIRE_OCTETS + 1) // 2 - 2
+_MAX_LABEL_LENGTH: int = 0b0011_1111
+_MAX_NAME_LENGTH: int = 0b1111_1111
+_POINTER_MASK: int = 0b1100_0000
+_MAX_POINTERS: int = (_MAX_NAME_LENGTH + 1) // 2 - 2
 
 
 def _parse_header(buffer: BinaryIO) -> Header:
@@ -15,7 +17,7 @@ def _parse_header(buffer: BinaryIO) -> Header:
 
 
 def _parse_compressed_name(length: int, buffer: BinaryIO, depth: int) -> Iterable[bytes]:
-    pointer_bytes = bytes([length & 0b0011_1111]) + buffer.read(1)
+    pointer_bytes = bytes([length & _MAX_LABEL_LENGTH]) + buffer.read(1)
     pointer = unpack_bytes("!H", pointer_bytes)[0]
     current_pos = buffer.tell()
     buffer.seek(pointer)
@@ -27,9 +29,12 @@ def _parse_compressed_name(length: int, buffer: BinaryIO, depth: int) -> Iterabl
 
 def _parse_name(buffer: BinaryIO, depth: int) -> Iterable[bytes]:
     while (byte := buffer.read(1)) and (length := byte[0]):
-        if length & 0b1100_0000:
-            if depth > _MAX_COMPRESSION_POINTERS:
-                raise DNSParserRecursionError(f"The limit of {_MAX_COMPRESSION_POINTERS} pointers has been reached")
+        if length > _MAX_LABEL_LENGTH:
+            if length < _POINTER_MASK:
+                raise DNSParserInvalidLabelLengthError(f"Invalid label length {length}")
+
+            if depth > _MAX_POINTERS:
+                raise DNSParserRecursionError(f"The limit of {_MAX_POINTERS} pointers has been reached")
 
             for name in _parse_compressed_name(length, buffer, depth + 1):
                 yield name
@@ -94,6 +99,9 @@ def _parse(buffer: BytesIO) -> DNSData:
 def parse(data: bytes) -> DNSData:
     try:
         return _parse(_bytes_to_buffer(data))
+
+    except DNSParserError:
+        raise
 
     except Exception as any_exception:
         raise DNSParserError from any_exception
