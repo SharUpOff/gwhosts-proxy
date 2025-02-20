@@ -208,13 +208,13 @@ class DNSProxy:
             self._routed_pool[remote] = ExpiringAddress(addr, time())
 
             for hostname in domains:
-                self._logger.info(f"DNS: Q[{query.header.id}] -> {qname_to_str(hostname)} (P)")
+                self._logger.info(f"DNS: Q[{query.header.id}] <- {qname_to_str(hostname)} (P)")
 
         else:
             self._regular_pool[remote] = ExpiringAddress(addr, time())
 
             for hostname in domains:
-                self._logger.info(f"DNS: Q[{query.header.id}] -> {qname_to_str(hostname)}")
+                self._logger.info(f"DNS: Q[{query.header.id}] <- {qname_to_str(hostname)}")
 
     @staticmethod
     def _sanitize_free_pool(pool: List[socket]) -> None:
@@ -245,7 +245,22 @@ class DNSProxy:
         self._release(_socket)
         return Datagram(data, pool.pop(_socket).address)
 
-    def _parse_responses(self, responses: List[Datagram]) -> Iterator[DNSDataMessage]:
+    def _parse_routed_responses(self, responses: List[Datagram]) -> Iterator[DNSDataMessage]:
+        for data, addr in responses:
+            try:
+                response = parse(data)
+
+            except DNSParserError:
+                self._logger.error("Failed to parse DNS response")
+                self._log_how_to_reproduce(data)
+
+            else:
+                for answer in response.answers:
+                    self._logger.info(f"DNS: R[{response.header.id}] {answer_to_str(answer)} (P)")
+
+                yield DNSDataMessage(response, addr)
+
+    def _parse_regular_responses(self, responses: List[Datagram]) -> None:
         for data, addr in responses:
             try:
                 response = parse(data)
@@ -257,8 +272,6 @@ class DNSProxy:
             else:
                 for answer in response.answers:
                     self._logger.info(f"DNS: R[{response.header.id}] {answer_to_str(answer)}")
-
-                yield DNSDataMessage(response, addr)
 
     @staticmethod
     def _send_responses(queue: List[Datagram], udp: UDPSocket) -> None:
@@ -406,8 +419,10 @@ class DNSProxy:
 
                         self._sanitize_free_pool(self._free_pool)
 
+                        self._parse_regular_responses(ready_responses)
+
                         if routed_responses:
-                            dns_data_messages = self._parse_responses(routed_responses)
+                            dns_data_messages = self._parse_routed_responses(routed_responses)
 
                             ipv4_updates, ipv6_updates = self._update_routes(dns_data_messages)
 
