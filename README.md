@@ -33,12 +33,12 @@ DNS proxy/router for a specified list of hostnames
 
 ### Python Interpreters
 - [x] [CPython](https://github.com/python/cpython)
-  - [x] [3.8](https://github.com/python/cpython/tree/3.8)
   - [x] [3.9](https://github.com/python/cpython/tree/3.9)
   - [x] [3.10](https://github.com/python/cpython/tree/3.10)
   - [x] [3.11](https://github.com/python/cpython/tree/3.11)
   - [x] [3.12](https://github.com/python/cpython/tree/3.12)
   - [x] [3.13](https://github.com/python/cpython/tree/3.13)
+  - [x] [3.14](https://github.com/python/cpython/tree/v3.14.0a5)
 - [x] [PyPy](https://github.com/pypy/pypy)
   - [x] [3.9](https://github.com/pypy/pypy/tree/py3.9)
   - [x] [3.10](https://github.com/pypy/pypy/tree/py3.10)
