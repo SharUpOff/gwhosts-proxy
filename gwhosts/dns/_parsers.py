@@ -1,7 +1,8 @@
 from io import BytesIO
-from typing import BinaryIO, Iterable, Tuple, Union
+from typing import BinaryIO, Iterable, Tuple
 
 from ._exceptions import DNSParserError, DNSParserRecursionError, DNSParserInvalidLabelLengthError
+from ._serializers import _encode_qname
 from ._struct import unpack_bytes, unpack_buffer
 from ._types import Addition, Answer, Authority, DNSData, Header, QName, Question, RRType
 
@@ -45,6 +46,10 @@ def _parse_name(buffer: BinaryIO, depth: int) -> Iterable[bytes]:
             yield buffer.read(length)
 
 
+def _decompress_name(buffer: BinaryIO) -> bytes:
+    return _encode_qname(_parse_name(buffer, 0))
+
+
 def _parse_qname(buffer: BinaryIO) -> QName:
     return QName(_parse_name(buffer, 0))
 
@@ -55,12 +60,12 @@ def _parse_question(buffer: BinaryIO) -> Question:
     return Question(name, rr_type, rr_class)
 
 
-def _parse_resource(buffer: BinaryIO) -> Tuple[QName, RRType, int, int, int, Union[QName, bytes]]:
+def _parse_resource(buffer: BinaryIO) -> Tuple[QName, RRType, int, int, int, bytes]:
     name = _parse_qname(buffer)
     rr_type, rr_class, ttl, rr_data_length = unpack_buffer("!HHIH", buffer)
 
     if rr_type == RRType.CNAME.value:
-        rr_data = _parse_qname(buffer)
+        rr_data = _decompress_name(buffer)
 
     else:
         rr_data = buffer.read(rr_data_length)
