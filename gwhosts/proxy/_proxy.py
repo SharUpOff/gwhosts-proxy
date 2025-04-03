@@ -94,9 +94,7 @@ class DNSProxy:
             (ipv6_ifname, LinkState.DOWN.value, self._process_rtm_newlink_down),
         )
         self._rtm_newlink_handlers: Dict[Tuple[str, str], Callable] = {
-            (_ifname, _state): _handler
-            for _ifname, _state, _handler in rtm_newlink_handlers
-            if _ifname is not None
+            (_ifname, _state): _handler for _ifname, _state, _handler in rtm_newlink_handlers if _ifname is not None
         }
         self._preserved_ifnames: Set[str] = set()
         self._netlink_to_network = {
@@ -427,12 +425,12 @@ class DNSProxy:
             netlink.bind()
             self._input_pool.append(netlink)
 
-            self._logger.info(f"DNS: loading existing IPv4 routes...")
+            self._logger.info("DNS: loading existing IPv4 routes...")
 
             for _message in netlink.get_routes(family=AF_INET):
                 self._process_netlink_message(netlink, _message)
 
-            self._logger.info(f"DNS: loading existing IPv6 routes...")
+            self._logger.info("DNS: loading existing IPv6 routes...")
 
             for _message in netlink.get_routes(family=AF_INET6):
                 self._process_netlink_message(netlink, _message)
