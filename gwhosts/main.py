@@ -19,10 +19,12 @@ if __name__ == "__main__":
         "debug": logging.DEBUG,
     }
 
-    parser.add_argument("gateway", help="Gateway IPv4")
     parser.add_argument("hostsfile", help="Host List", nargs="?")
+    parser.add_argument("--ipv4-ifname", dest="ipv4_ifname", help="IPv4 interface name", default=None)
+    parser.add_argument("--ipv4-gateway", dest="ipv4_gateway", help="IPv4 gateway", default=None)
+    parser.add_argument("--ipv6-ifname", dest="ipv6_ifname", help="IPv6 interface name", default=None)
+    parser.add_argument("--ipv6-gateway", dest="ipv6_gateway", help="IPv6 gateway", default=None)
     parser.add_argument("--host", dest="host", help="Listening address", default="127.0.0.1")
-    parser.add_argument("--ipv6-gateway", dest="ipv6_gateway", help="Gateway IPv6", default=None)
     parser.add_argument("--port", dest="port", help="Listening port", default="8053", type=int)
     parser.add_argument("--dns-host", dest="dns_host", help="Remote DNS address", default="127.0.0.1")
     parser.add_argument("--dns-port", dest="dns_port", help="Remote DNS port", default="65053", type=int)
@@ -55,7 +57,9 @@ if __name__ == "__main__":
         _hostnames = set()
 
     proxy = DNSProxy(
-        gateway=args.gateway,
+        ipv4_ifname=args.ipv4_ifname,
+        ipv4_gateway=args.ipv4_gateway,
+        ipv6_ifname=args.ipv6_ifname,
         ipv6_gateway=args.ipv6_gateway,
         to_addr=Address(args.dns_host, args.dns_port),
         hostnames=_hostnames,

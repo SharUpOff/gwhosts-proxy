@@ -5,12 +5,11 @@ from collections import deque
 from functools import lru_cache
 from logging import Logger
 from select import select
-from signal import signal, SIGHUP
 from socket import socket, AF_INET, AF_INET6
 from time import time
 from typing import Callable, Dict, Iterable, Iterator, List, Set, Tuple, Optional
 
-from ._types import DNSDataMessage, RTMEvent
+from ._types import DNSDataMessage, LinkState, RTMEvent
 from ..dns import QName, DNSParserError, RRType, parse, qname_to_str, answer_to_str
 from ..network import (
     Address,
@@ -44,15 +43,19 @@ from ..routes import Netlink
 class DNSProxy:
     def __init__(
         self,
-        gateway: IPAddress,
         hostnames: Set[QName],
         logger: Logger,
+        ipv4_ifname: Optional[str] = None,
+        ipv4_gateway: Optional[IPAddress] = None,
+        ipv6_ifname: Optional[str] = None,
         ipv6_gateway: Optional[IPAddress] = None,
         to_addr: Address = Address("127.0.0.1", 8053),
         buff_size: int = 1024,
         timeout_in_seconds: int = 5,
     ) -> None:
-        self._ipv4_gateway = gateway
+        self._ipv4_ifname = ipv4_ifname
+        self._ipv4_gateway = ipv4_gateway
+        self._ipv6_ifname = ipv6_ifname
         self._ipv6_gateway = ipv6_gateway
         self._to_addr = to_addr
         self._buff_size = buff_size
@@ -68,16 +71,34 @@ class DNSProxy:
         self._ipv4_subnets: Set[Network] = set()
         self._ipv6_addresses: Set[IPAddress] = set()
         self._ipv6_subnets: Set[Network] = set()
-        self._netlink_event_handlers: Dict[RTMEvent, Dict[Tuple[int, str], Callable]] = {
-            RTMEvent.NEW_ROUTE.value: {
-                (AF_INET, self._ipv4_gateway): self._ipv4_process_rtm_new_route,
-                (AF_INET6, self._ipv6_gateway): self._ipv6_process_rtm_new_route,
-            },
-            RTMEvent.DEL_ROUTE.value: {
-                (AF_INET, self._ipv4_gateway): self._ipv4_process_rtm_del_route,
-                (AF_INET6, self._ipv6_gateway): self._ipv6_process_rtm_del_route,
-            },
+        self._netlink_event_handlers: Dict[RTMEvent, Callable] = {
+            RTMEvent.NEW_ROUTE.value: self._process_rtm_route,
+            RTMEvent.DEL_ROUTE.value: self._process_rtm_route,
+            RTMEvent.NEW_LINK.value: self._process_rtm_newlink,
         }
+        rtm_route_handlers = (
+            (RTMEvent.NEW_ROUTE.value, AF_INET, ipv4_gateway, self._ipv4_process_rtm_new_route),
+            (RTMEvent.NEW_ROUTE.value, AF_INET6, ipv6_gateway, self._ipv6_process_rtm_new_route),
+            (RTMEvent.DEL_ROUTE.value, AF_INET, ipv4_gateway, self._ipv4_process_rtm_del_route),
+            (RTMEvent.DEL_ROUTE.value, AF_INET6, ipv6_gateway, self._ipv6_process_rtm_del_route),
+        )
+        self._rtm_route_handlers: Dict[Tuple[str, int, str], Callable] = {
+            (_event, _family, _gateway): _handler
+            for _event, _family, _gateway, _handler in rtm_route_handlers
+            if _gateway is not None
+        }
+        rtm_newlink_handlers = (
+            (ipv4_ifname, LinkState.UP.value, self._process_rtm_newlink_up),
+            (ipv4_ifname, LinkState.DOWN.value, self._process_rtm_newlink_down),
+            (ipv6_ifname, LinkState.UP.value, self._process_rtm_newlink_up),
+            (ipv6_ifname, LinkState.DOWN.value, self._process_rtm_newlink_down),
+        )
+        self._rtm_newlink_handlers: Dict[Tuple[str, str], Callable] = {
+            (_ifname, _state): _handler
+            for _ifname, _state, _handler in rtm_newlink_handlers
+            if _ifname is not None
+        }
+        self._preserved_ifnames: Set[str] = set()
         self._netlink_to_network = {
             AF_INET: self._ipv4_netlink_to_network,
             AF_INET6: self._ipv6_netlink_to_network,
@@ -292,6 +313,10 @@ class DNSProxy:
 
     def _ipv4_process_rtm_del_route(self, network: Network) -> None:
         """An existing IPv4 route is deleted"""
+        if self._ipv4_ifname in self._preserved_ifnames:
+            self._logger.info(f"DNS: network preserved {ipv4_network_to_str(network)}")
+            return
+
         try:
             self._ipv4_subnets.remove(network)
 
@@ -316,6 +341,10 @@ class DNSProxy:
 
     def _ipv6_process_rtm_del_route(self, network: Network) -> None:
         """An IPv6 existing route is deleted"""
+        if self._ipv6_ifname in self._preserved_ifnames:
+            self._logger.info(f"DNS: network preserved {ipv6_network_to_str(network)}")
+            return
+
         try:
             self._ipv6_subnets.remove(network)
 
@@ -326,55 +355,87 @@ class DNSProxy:
         else:
             self._logger.info(f"DNS: network deleted {ipv6_network_to_str(network)}")
 
-    def _process_netlink_message(self, message: dict) -> None:
+    def _process_rtm_newlink(self, netlink: Netlink, message: dict) -> None:
+        attrs = dict(message["attrs"])
+        ifname = attrs["IFLA_IFNAME"]
+        state = message["state"]
+        key = ifname, state
+
+        if key in self._rtm_newlink_handlers:
+            self._rtm_newlink_handlers[key](netlink, ifname)
+
+    def _process_rtm_newlink_up(self, netlink: Netlink, ifname: str) -> None:
+        if ifname not in self._preserved_ifnames:
+            return
+
+        self._preserved_ifnames.remove(ifname)
+
+        if ifname == self._ipv4_ifname:
+            self._logger.info(f"DNS: restoring IPv4 routes via {self._ipv4_gateway}...")
+
+            for _network in self._ipv4_subnets:
+                netlink.ipv4_add_route(_network, self._ipv4_gateway)
+
+        if ifname == self._ipv6_ifname:
+            self._logger.info(f"DNS: restoring IPv6 routes via {self._ipv6_gateway}...")
+
+            for _network in self._ipv6_subnets:
+                netlink.ipv6_add_route(_network, self._ipv6_gateway)
+
+    def _process_rtm_newlink_down(self, netlink: Netlink, ifname: str) -> None:
+        self._preserved_ifnames.add(ifname)
+        self._logger.info(f"DNS: interface preserved {ifname}")
+
+    def _process_rtm_route(self, netlink: Netlink, message: dict) -> None:
+        attrs = dict(message["attrs"])
+
+        if "RTA_GATEWAY" in attrs:
+            event = message["event"]
+            family = message["family"]
+            gateway = attrs["RTA_GATEWAY"]
+            key = event, family, gateway
+
+            if key in self._rtm_route_handlers:
+                network = self._netlink_to_network[family](
+                    address=attrs["RTA_DST"],
+                    length=message["dst_len"],
+                )
+                self._rtm_route_handlers[key](network)
+
+    def _process_netlink_message(self, netlink: Netlink, message: dict) -> None:
         event = message["event"]
 
         if event in self._netlink_event_handlers:
-            attrs = dict(message["attrs"])
+            self._netlink_event_handlers[event](netlink, message)
 
-            if "RTA_GATEWAY" in attrs:
-                event_handlers = self._netlink_event_handlers[event]
-                family = message["family"]
+    def _process_ipv4_updates(self, netlink: Netlink, updates: Dict[Network, bool]) -> None:
+        for network, exist in updates.items():
+            if exist:
+                netlink.ipv4_add_route(network, self._ipv4_gateway)
+            else:
+                netlink.ipv4_del_route(network, self._ipv4_gateway)
 
-                if family in self._netlink_to_network:
-                    gateway = attrs["RTA_GATEWAY"]
-
-                    if (family, gateway) in event_handlers:
-                        network = self._netlink_to_network[family](
-                            address=attrs["RTA_DST"],
-                            length=message["dst_len"],
-                        )
-                        event_handlers[(family, gateway)](network)
+    def _process_ipv6_updates(self, netlink: Netlink, updates: Dict[Network, bool]) -> None:
+        for network, exist in updates.items():
+            if exist:
+                netlink.ipv6_add_route(network, self._ipv6_gateway)
+            else:
+                netlink.ipv6_del_route(network, self._ipv6_gateway)
 
     def listen(self, addr: Address) -> None:
         with Netlink() as netlink:
             netlink.bind()
             self._input_pool.append(netlink)
 
-            self._logger.info(f"DNS: loading existing IPv4 routes via {self._ipv4_gateway}...")
+            self._logger.info(f"DNS: loading existing IPv4 routes...")
 
             for _message in netlink.get_routes(family=AF_INET):
-                self._process_netlink_message(_message)
+                self._process_netlink_message(netlink, _message)
 
-            self._logger.info(f"DNS: loading existing IPv6 routes via {self._ipv6_gateway}...")
+            self._logger.info(f"DNS: loading existing IPv6 routes...")
 
             for _message in netlink.get_routes(family=AF_INET6):
-                self._process_netlink_message(_message)
-
-            def _restore_routes(*_args, **_kwargs) -> None:
-                self._logger.info(f"DNS: restoring IPv4 routes via {self._ipv4_gateway}...")
-
-                for _network in self._ipv4_subnets:
-                    self._logger.info(f"DNS: {ipv4_network_to_str(_network)} -> {self._ipv4_gateway}")
-                    netlink.ipv4_add_route(_network, self._ipv4_gateway)
-
-                self._logger.info(f"DNS: restoring IPv6 routes via {self._ipv6_gateway}...")
-
-                for _network in self._ipv6_subnets:
-                    self._logger.info(f"DNS: {ipv6_network_to_str(_network)} -> {self._ipv6_gateway}")
-                    netlink.ipv6_add_route(_network, self._ipv6_gateway)
-
-            signal(SIGHUP, _restore_routes)
+                self._process_netlink_message(netlink, _message)
 
             with UDPSocket() as udp:
                 udp.bind(addr)
@@ -401,7 +462,7 @@ class DNSProxy:
 
                             elif _socket is netlink:
                                 for _message in netlink.get():
-                                    self._process_netlink_message(_message)
+                                    self._process_netlink_message(netlink, _message)
 
                             else:
                                 raise AttributeError("DNS: Unknown socket source")
@@ -428,17 +489,11 @@ class DNSProxy:
 
                             ready_responses.extend(routed_responses)
 
-                            for network, exist in ipv4_updates.items():
-                                if exist:
-                                    netlink.ipv4_add_route(network, self._ipv4_gateway)
-                                else:
-                                    netlink.ipv4_del_route(network, self._ipv4_gateway)
+                            if self._ipv4_gateway is not None:
+                                self._process_ipv4_updates(netlink, ipv4_updates)
 
-                            for network, exist in ipv6_updates.items():
-                                if exist:
-                                    netlink.ipv6_add_route(network, self._ipv6_gateway)
-                                else:
-                                    netlink.ipv6_del_route(network, self._ipv6_gateway)
+                            if self._ipv6_gateway is not None:
+                                self._process_ipv6_updates(netlink, ipv6_updates)
 
                         if ready_responses:
                             self._send_responses(ready_responses, udp)

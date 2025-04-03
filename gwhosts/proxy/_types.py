@@ -10,6 +10,12 @@ class RTMEvent(Enum):
     NEW_ROUTE: str = "RTM_NEWROUTE"
     DEL_ROUTE: str = "RTM_DELROUTE"
     GET_ROUTE: str = "RTM_GETROUTE"
+    NEW_LINK: str = "RTM_NEWLINK"
+
+
+class LinkState(Enum):
+    UP: str = "up"
+    DOWN: str = "down"
 
 
 class AddressFamily(Enum):

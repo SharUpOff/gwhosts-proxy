@@ -23,7 +23,7 @@ DNS proxy/router for a specified list of hostnames
 
 ## Usage
   ```bash
-  ./env/bin/python -m gwhosts.main 192.168.2.1 ./gwhosts.example.gz
+  ./env/bin/python -m gwhosts.main ./gwhosts.example.gz --ipv4-gateway=192.168.2.1 --ipv4-ifname=tun0 
   ```
 
 ## Supported Environments
