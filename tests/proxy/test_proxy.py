@@ -13,10 +13,8 @@ _logger = getLogger("pytest")
 @pytest.fixture()
 def proxy() -> DNSProxy:
     return DNSProxy(
-        gateway="192.168.2.1",
         hostnames={QName((b"example", b"com"))},
         logger=_logger,
-        ipv6_gateway="fced:9999::1",
     )
 
 
