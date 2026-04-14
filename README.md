@@ -42,6 +42,7 @@ DNS proxy/router for a specified list of hostnames
 - [x] [PyPy](https://github.com/pypy/pypy)
   - [x] [3.9](https://github.com/pypy/pypy/tree/py3.9)
   - [x] [3.10](https://github.com/pypy/pypy/tree/py3.10)
+  - [x] [3.11](https://github.com/pypy/pypy/tree/py3.11)
 
 ## Used resources
 - [Introduction to Netlink](https://docs.kernel.org/next/userspace-api/netlink/intro.html)
