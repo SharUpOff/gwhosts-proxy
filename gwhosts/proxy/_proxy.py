@@ -52,7 +52,7 @@ class DNSProxy:
         ipv6_ifname: Optional[str] = None,
         ipv6_gateway: Optional[IPAddress] = None,
         to_addr: Address = Address("127.0.0.1", 8053),
-        buff_size: int = 1024,
+        buff_size: int = 1232,
         timeout_in_seconds: int = 5,
     ) -> None:
         self._ipv4_ifname = ipv4_ifname
