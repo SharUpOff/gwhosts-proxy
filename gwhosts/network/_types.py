@@ -1,4 +1,4 @@
-from socket import AF_INET, SOCK_DGRAM, socket
+from socket import AF_INET, SOCK_DGRAM, SOCK_STREAM, socket
 from typing import Any, NamedTuple, Optional
 
 RouteClass = int
@@ -20,11 +20,13 @@ class Address(NamedTuple):
 class ExpiringAddress(NamedTuple):
     address: Address
     time: float
+    socket: socket
 
 
 class Datagram(NamedTuple):
     data: bytes
     target: Address
+    socket: socket
 
 
 class Network(NamedTuple):
@@ -40,3 +42,8 @@ class GatewayInfo(NamedTuple):
 class UDPSocket(socket):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(AF_INET, SOCK_DGRAM, *args, **kwargs)
+
+
+class TCPSocket(socket):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(AF_INET, SOCK_STREAM, *args, **kwargs)

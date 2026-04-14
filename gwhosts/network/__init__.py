@@ -7,6 +7,7 @@ from ._types import (
     IPBinary,
     Network,
     NetworkSize,
+    TCPSocket,
     UDPSocket,
     RT_CLASS_MAIN,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "IPBinary",
     "Network",
     "NetworkSize",
+    "TCPSocket",
     "UDPSocket",
     "RT_CLASS_MAIN",
 ]

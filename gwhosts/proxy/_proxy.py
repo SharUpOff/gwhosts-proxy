@@ -5,9 +5,10 @@ from collections import deque
 from functools import lru_cache
 from logging import Logger
 from select import select
-from socket import socket, AF_INET, AF_INET6
+from socket import socket, AF_INET, AF_INET6, SOCK_DGRAM, SOCK_STREAM
+from struct import pack, unpack
 from time import time
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
 from collections.abc import Iterable, Iterator
 
 from ._types import DNSDataMessage, LinkState, RTMEvent
@@ -21,6 +22,7 @@ from ..network import (
     IPBinary,
     Network,
     NetworkSize,
+    TCPSocket,
     UDPSocket,
 )
 from ..network.ipv4 import (
@@ -65,7 +67,8 @@ class DNSProxy:
         self._hostnames: set[QName] = hostnames
         self._logger: Logger = logger
         self._free_pool: list[UDPSocket] = []
-        self._input_pool: list[UDPSocket] = []
+        self._input_pool: list[socket] = []
+        self._tcp_client_pool: dict[socket, Iterator[Optional[Datagram]]] = {}
         self._regular_pool: dict[UDPSocket, ExpiringAddress] = {}
         self._routed_pool: dict[UDPSocket, ExpiringAddress] = {}
         self._queries_queue: deque[Datagram] = deque()
@@ -123,8 +126,8 @@ class DNSProxy:
         return soft
 
     @property
-    def _active_pool(self) -> list[UDPSocket]:
-        return [*self._input_pool, *self._regular_pool, *self._routed_pool]
+    def _active_pool(self) -> list[socket]:
+        return [*self._input_pool, *self._tcp_client_pool, *self._regular_pool, *self._routed_pool]
 
     def _get_socket(self) -> UDPSocket:
         if len(self._free_pool):
@@ -212,7 +215,7 @@ class DNSProxy:
         self._logger.error(f"echo -n '{b64data}' | python -m base64 -d | python -m gwhosts.dns.parser")
 
     def _route_request(self, datagram: Datagram) -> None:
-        data, addr = datagram
+        data, addr, sock = datagram
 
         try:
             query = parse(data)
@@ -231,7 +234,7 @@ class DNSProxy:
         all_matches: str = ", ".join(qname_to_str(match) for match in matches.values() if match is not None)
 
         if all_matches:
-            self._routed_pool[remote] = ExpiringAddress(addr, time())
+            self._routed_pool[remote] = ExpiringAddress(addr, time(), sock)
 
             for hostname in domains:
                 match = matches[hostname]
@@ -241,7 +244,7 @@ class DNSProxy:
                     self._logger.info(f"Q:{query.header.id} ← {qname_to_str(hostname)} ({qname_to_str(match)})")
 
         else:
-            self._regular_pool[remote] = ExpiringAddress(addr, time())
+            self._regular_pool[remote] = ExpiringAddress(addr, time(), sock)
 
             for hostname in domains:
                 self._logger.info(f"Q:{query.header.id} ← {qname_to_str(hostname)} (*)")
@@ -263,23 +266,24 @@ class DNSProxy:
 
         return expired_queries
 
-    def _read(self, _socket: socket) -> Datagram:
+    def _udp_read(self, _socket: UDPSocket) -> Datagram:
         data, addr = _socket.recvfrom(self._buff_size)
-        return Datagram(data, Address(*addr))
+        return Datagram(data, Address(*addr), _socket)
 
     def _release(self, _socket: UDPSocket) -> None:
         self._free_pool.append(_socket)
 
-    def _read_and_release(self, _socket: UDPSocket, pool: dict[UDPSocket, ExpiringAddress]) -> Datagram:
-        data = self._read(_socket).data
+    def _udp_read_and_release(self, _socket: UDPSocket, pool: dict[UDPSocket, ExpiringAddress]) -> Datagram:
+        data = self._udp_read(_socket).data
         self._release(_socket)
-        return Datagram(data, pool.pop(_socket).address)
+        expiring_address: ExpiringAddress = pool.pop(_socket)
+        return Datagram(data, expiring_address.address, expiring_address.socket)
 
     def _get_gateway_info(self, answer: Answer) -> Optional[GatewayInfo]:
         return self._rr_type_to_gateway_info.get(answer.rr_type)
 
     def _parse_routed_responses(self, responses: list[Datagram]) -> Iterator[DNSDataMessage]:
-        for data, addr in responses:
+        for data, addr, sock in responses:
             try:
                 response = parse(data)
 
@@ -302,7 +306,7 @@ class DNSProxy:
                 yield DNSDataMessage(response, addr)
 
     def _parse_regular_responses(self, responses: list[Datagram]) -> None:
-        for data, addr in responses:
+        for data, addr, sock in responses:
             try:
                 response = parse(data)
 
@@ -315,9 +319,16 @@ class DNSProxy:
                     self._logger.info(f"R:{response.header.id} → {answer_to_str(answer)}")
 
     @staticmethod
-    def _send_responses(queue: list[Datagram], udp: UDPSocket) -> None:
-        for data, addr in queue:
-            udp.sendto(data, addr)
+    def _send_responses(queue: list[Datagram]) -> None:
+        for data, addr, sock in queue:
+            if sock.type == SOCK_DGRAM:
+                sock.sendto(data, addr)
+
+            elif sock.type == SOCK_STREAM:
+                sock.sendall(pack("!H", len(data)) + data)
+
+            else:
+                raise AttributeError(f"Unknown socket type {sock}")
 
     @staticmethod
     def _ipv4_netlink_to_network(address: IPAddress, length: NetworkSize) -> Network:
@@ -444,6 +455,20 @@ class DNSProxy:
                 else:
                     netlink.ipv6_del_route(network, self._ipv6_gateway)
 
+    @staticmethod
+    def _tcp_read(_socket: socket, addr: Address) -> Iterator[Optional[Datagram]]:
+        while _socket.fileno() != -1:
+            length_bytes = _socket.recv(2)
+            (length,) = unpack("!H", length_bytes)
+
+            data: bytes = _socket.recv(length)
+
+            while len(data) < length:
+                yield None
+                data += _socket.recv(length - len(data))
+
+            yield Datagram(data, Address(*addr), _socket)
+
     def listen(self, addr: Address) -> None:
         with Netlink() as netlink:
             netlink.bind()
@@ -459,9 +484,12 @@ class DNSProxy:
             for _message in netlink.get_routes(family=AF_INET6):
                 self._process_netlink_message(netlink, _message)
 
-            with UDPSocket() as udp:
+            with UDPSocket() as udp, TCPSocket() as tcp:
                 udp.bind(addr)
+                tcp.bind(addr)
+                tcp.listen()
                 self._input_pool.append(udp)
+                self._input_pool.append(tcp)
 
                 self._logger.info(f"proxy is listening at {addr.host}:{addr.port}")
 
@@ -474,13 +502,28 @@ class DNSProxy:
 
                         for _socket in r_ready:
                             if _socket is udp:
-                                self._queries_queue.append(self._read(_socket))
+                                self._queries_queue.append(self._udp_read(udp))
+
+                            elif _socket is tcp:
+                                client_socket, addr = tcp.accept()
+                                self._tcp_client_pool[client_socket] = self._tcp_read(client_socket, addr)
+
+                            elif _socket in self._tcp_client_pool:
+                                datagram: Optional[Datagram] = next(self._tcp_client_pool[_socket], None)
+
+                                if datagram is not None:
+                                    self._queries_queue.append(datagram)
+                                    del self._tcp_client_pool[_socket]
 
                             elif _socket in self._routed_pool:
-                                routed_responses.append(self._read_and_release(_socket, self._routed_pool))
+                                routed_responses.append(
+                                    self._udp_read_and_release(cast(UDPSocket, _socket), self._routed_pool)
+                                )
 
                             elif _socket in self._regular_pool:
-                                ready_responses.append(self._read_and_release(_socket, self._regular_pool))
+                                ready_responses.append(
+                                    self._udp_read_and_release(cast(UDPSocket, _socket), self._regular_pool)
+                                )
 
                             elif _socket is netlink:
                                 for _message in netlink.get():
@@ -515,7 +558,7 @@ class DNSProxy:
                             self._process_ipv6_updates(netlink, ipv6_updates)
 
                         if ready_responses:
-                            self._send_responses(ready_responses, udp)
+                            self._send_responses(ready_responses)
 
                     except Exception as e:
                         self._logger.exception(e)
