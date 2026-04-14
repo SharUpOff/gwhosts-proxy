@@ -1,12 +1,13 @@
 from socket import AF_INET, inet_ntop, inet_pton
 from struct import pack, unpack
+from typing import cast
 
 from ._types import IPV4_NETMASK_MAX, IPV4_NETSIZE_MAX
 from .._types import IPAddress, IPBinary, Network, NetworkSize
 
 
 def ipv4_bytes_to_int(address: bytes) -> IPBinary:
-    return unpack("!L", address)[0]
+    return cast(IPBinary, unpack("!L", address)[0])
 
 
 def ipv4_int_to_bytes(number: IPBinary) -> bytes:

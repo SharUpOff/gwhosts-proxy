@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum
 from socket import AF_INET, AF_INET6
 from typing import NamedTuple
 
@@ -6,21 +6,21 @@ from ..dns import DNSData
 from ..network import Address
 
 
-class RTMEvent(Enum):
-    NEW_ROUTE: str = "RTM_NEWROUTE"
-    DEL_ROUTE: str = "RTM_DELROUTE"
-    GET_ROUTE: str = "RTM_GETROUTE"
-    NEW_LINK: str = "RTM_NEWLINK"
+class RTMEvent(str, Enum):
+    NEW_ROUTE = "RTM_NEWROUTE"
+    DEL_ROUTE = "RTM_DELROUTE"
+    GET_ROUTE = "RTM_GETROUTE"
+    NEW_LINK = "RTM_NEWLINK"
 
 
-class LinkState(Enum):
-    UP: str = "up"
-    DOWN: str = "down"
+class LinkState(str, Enum):
+    UP = "up"
+    DOWN = "down"
 
 
-class AddressFamily(Enum):
-    AF_INET: int = AF_INET
-    AF_INET6: int = AF_INET6
+class AddressFamily(IntEnum):
+    AF_INET = AF_INET
+    AF_INET6 = AF_INET6
 
 
 class DNSDataMessage(NamedTuple):

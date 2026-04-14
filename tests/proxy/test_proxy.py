@@ -4,7 +4,7 @@ from gwhosts.dns import QName
 from gwhosts.network import UDPSocket
 from logging import getLogger
 from pytest_mock import MockerFixture
-from typing import List, Optional
+from typing import Optional
 
 
 _logger = getLogger("pytest")
@@ -19,7 +19,7 @@ def proxy() -> DNSProxy:
 
 
 @pytest.mark.parametrize("listdir", ([], ["0"], ["0", "1"], ["0", "1", "2"], ["0", "1", "2", "3"]))
-def test_open_files_count(mocker: MockerFixture, proxy: DNSProxy, listdir: List[str]) -> None:
+def test_open_files_count(mocker: MockerFixture, proxy: DNSProxy, listdir: list[str]) -> None:
     mock_os_listdir = mocker.patch("os.listdir", return_value=listdir)
 
     assert proxy._open_files_count == len(listdir)

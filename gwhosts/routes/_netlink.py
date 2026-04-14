@@ -21,6 +21,7 @@ from pyroute2.netlink.rtnl import (
     RTM_NEWROUTE,
 )
 from pyroute2.netlink.rtnl.rtmsg import rtmsg
+from typing import Any
 
 from ._rtmsg import _msg_get_routes, _msg_route
 from ..network import IPAddress, Network
@@ -65,8 +66,8 @@ def _ipv6_msg_route(netaddr: str, netsize: int, gateway: str) -> rtmsg:
     return _msg_route(netaddr, netsize, gateway, AF_INET6)
 
 
-class Netlink(IPRoute):
-    def __init__(self, *args, family=NETLINK_ROUTE, **kwargs):
+class Netlink(IPRoute):  # type: ignore[misc]
+    def __init__(self, *args: Any, family: int = NETLINK_ROUTE, **kwargs: Any) -> None:
         super().__init__(*args, family=family, **kwargs)
 
     def ipv4_get_routes(self) -> None:

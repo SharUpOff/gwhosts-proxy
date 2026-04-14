@@ -38,6 +38,7 @@ classifiers = [
 
 [project.optional-dependencies]
 test = ["pytest~=8.3", "pytest-mock~=3.14", "pytest-cov~=6.0"]
+mypy = ["mypy"]
 
 [project.urls]
 homepage = "https://github.com/sharupoff/gwhosts-proxy"
@@ -53,6 +54,9 @@ line-length = 119
 indent-width = 4
 target-version = "py39"
 
+[tool.ruff.lint]
+extend-select = ["UP"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
@@ -60,6 +64,9 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.mypy]
+python_version = "3.9"
+strict = true
+ignore_missing_imports = true
 explicit_package_bases = true
 install_types = true
 non_interactive = true

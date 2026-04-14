@@ -1,5 +1,6 @@
 from io import BytesIO
-from typing import BinaryIO, Iterable, Tuple
+from typing import BinaryIO
+from collections.abc import Iterable
 
 from ._exceptions import DNSParserError, DNSParserRecursionError, DNSParserInvalidLabelLengthError
 from ._serializers import _encode_qname
@@ -22,8 +23,7 @@ def _parse_compressed_name(length: int, buffer: BinaryIO, depth: int) -> Iterabl
     pointer = unpack_bytes("!H", pointer_bytes)[0]
     current_pos = buffer.tell()
     buffer.seek(pointer)
-    for name in _parse_name(buffer, depth):
-        yield name
+    yield from _parse_name(buffer, depth)
 
     buffer.seek(current_pos)
 
@@ -37,8 +37,7 @@ def _parse_name(buffer: BinaryIO, depth: int) -> Iterable[bytes]:
             if depth > _MAX_POINTERS:
                 raise DNSParserRecursionError(f"The limit of {_MAX_POINTERS} pointers has been reached")
 
-            for name in _parse_compressed_name(length, buffer, depth + 1):
-                yield name
+            yield from _parse_compressed_name(length, buffer, depth + 1)
 
             break
 
@@ -60,7 +59,7 @@ def _parse_question(buffer: BinaryIO) -> Question:
     return Question(name, rr_type, rr_class)
 
 
-def _parse_resource(buffer: BinaryIO) -> Tuple[QName, RRType, int, int, int, bytes]:
+def _parse_resource(buffer: BinaryIO) -> tuple[QName, RRType, int, int, int, bytes]:
     name = _parse_qname(buffer)
     rr_type, rr_class, ttl, rr_data_length = unpack_buffer("!HHIH", buffer)
 

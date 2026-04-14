@@ -1,4 +1,4 @@
-from typing import Iterable, Iterator
+from collections.abc import Iterable, Iterator
 
 from ._types import IPV6_NETMASK_MIN
 from .._types import Network

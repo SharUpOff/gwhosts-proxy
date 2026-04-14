@@ -10,12 +10,12 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
             DNSData(
                 header=Header(id=44458, flags=0b10000001_10000000, questions=1, answers=5, authorities=0, additions=1),
                 questions=[
-                    Question(name=QName((b"www", b"youtube", b"com")), rr_type=RRType.AAAA.value, rr_class=1),
+                    Question(name=QName((b"www", b"youtube", b"com")), rr_type=RRType.AAAA, rr_class=1),
                 ],
                 answers=[
                     Answer(
                         name=QName((b"www", b"youtube", b"com")),
-                        rr_type=RRType.CNAME.value,
+                        rr_type=RRType.CNAME,
                         rr_class=1,
                         ttl=810,
                         rr_data_length=22,
@@ -23,7 +23,7 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
                     ),
                     Answer(
                         name=QName((b"youtube-ui", b"l", b"google", b"com")),
-                        rr_type=RRType.AAAA.value,
+                        rr_type=RRType.AAAA,
                         rr_class=1,
                         ttl=810,
                         rr_data_length=16,
@@ -31,7 +31,7 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
                     ),
                     Answer(
                         name=QName((b"youtube-ui", b"l", b"google", b"com")),
-                        rr_type=RRType.AAAA.value,
+                        rr_type=RRType.AAAA,
                         rr_class=1,
                         ttl=810,
                         rr_data_length=16,
@@ -39,7 +39,7 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
                     ),
                     Answer(
                         name=QName((b"youtube-ui", b"l", b"google", b"com")),
-                        rr_type=RRType.AAAA.value,
+                        rr_type=RRType.AAAA,
                         rr_class=1,
                         ttl=810,
                         rr_data_length=16,
@@ -47,7 +47,7 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
                     ),
                     Answer(
                         name=QName((b"youtube-ui", b"l", b"google", b"com")),
-                        rr_type=RRType.AAAA.value,
+                        rr_type=RRType.AAAA,
                         rr_class=1,
                         ttl=810,
                         rr_data_length=16,
@@ -56,9 +56,7 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
                 ],
                 authorities=[],
                 additions=[
-                    Addition(
-                        name=QName(), rr_type=RRType.OPT.value, rr_class=65494, ttl=0, rr_data_length=0, rr_data=b""
-                    ),
+                    Addition(name=QName(), rr_type=RRType.OPT, rr_class=65494, ttl=0, rr_data_length=0, rr_data=b""),
                 ],
             ),
             b"\xad\xaa\x81\x80\x00\x01\x00\x05\x00\x00\x00\x01\x03\x77\x77\x77\x07\x79\x6f\x75\x74\x75\x62\x65\x03\x63\x6f"
@@ -77,12 +75,12 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
             DNSData(
                 header=Header(id=26706, flags=0b10000001_10000000, questions=1, answers=5, authorities=0, additions=1),
                 questions=[
-                    Question(name=QName((b"www", b"youtube", b"com")), rr_type=RRType.A.value, rr_class=1),
+                    Question(name=QName((b"www", b"youtube", b"com")), rr_type=RRType.A, rr_class=1),
                 ],
                 answers=[
                     Answer(
                         name=QName((b"www", b"youtube", b"com")),
-                        rr_type=RRType.CNAME.value,
+                        rr_type=RRType.CNAME,
                         rr_class=1,
                         ttl=1933,
                         rr_data_length=22,
@@ -90,7 +88,7 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
                     ),
                     Answer(
                         name=QName((b"youtube-ui", b"l", b"google", b"com")),
-                        rr_type=RRType.A.value,
+                        rr_type=RRType.A,
                         rr_class=1,
                         ttl=1933,
                         rr_data_length=4,
@@ -98,7 +96,7 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
                     ),
                     Answer(
                         name=QName((b"youtube-ui", b"l", b"google", b"com")),
-                        rr_type=RRType.A.value,
+                        rr_type=RRType.A,
                         rr_class=1,
                         ttl=1933,
                         rr_data_length=4,
@@ -106,7 +104,7 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
                     ),
                     Answer(
                         name=QName((b"youtube-ui", b"l", b"google", b"com")),
-                        rr_type=RRType.A.value,
+                        rr_type=RRType.A,
                         rr_class=1,
                         ttl=1933,
                         rr_data_length=4,
@@ -114,7 +112,7 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
                     ),
                     Answer(
                         name=QName((b"youtube-ui", b"l", b"google", b"com")),
-                        rr_type=RRType.A.value,
+                        rr_type=RRType.A,
                         rr_class=1,
                         ttl=1933,
                         rr_data_length=4,
@@ -123,9 +121,7 @@ from gwhosts.dns import DNSData, Header, Question, Addition, QName, Answer, RRTy
                 ],
                 authorities=[],
                 additions=[
-                    Addition(
-                        name=QName(), rr_type=RRType.OPT.value, rr_class=65494, ttl=0, rr_data_length=0, rr_data=b""
-                    ),
+                    Addition(name=QName(), rr_type=RRType.OPT, rr_class=65494, ttl=0, rr_data_length=0, rr_data=b""),
                 ],
             ),
             b"\x68\x52\x81\x80\x00\x01\x00\x05\x00\x00\x00\x01\x03\x77\x77\x77\x07\x79\x6f\x75\x74\x75\x62\x65\x03\x63\x6f"

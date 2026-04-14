@@ -1,6 +1,6 @@
 from dataclasses import astuple
 from struct import pack
-from typing import Iterable
+from collections.abc import Iterable
 
 from ._types import Addition, Answer, Authority, DNSData, Header, QName, Question
 

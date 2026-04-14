@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-from enum import Enum
-from typing import List, Tuple
+from enum import IntEnum
 
 
-class Flags(Enum):
+class Flags(IntEnum):
     """DNS Header Flags Masks
     :param AA: Authoritative Answer [https://www.iana.org/go/rfc1035]
     :param TC: Truncated Response [https://www.iana.org/go/rfc1035]
@@ -12,26 +11,26 @@ class Flags(Enum):
     :see: https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-12
     """
 
-    QR: int = 0b10000000_00000000
-    OPCODE: int = 0b01111000_00000000
-    AA: int = 0b00000100_00000000
-    TC: int = 0b00000010_00000000
-    RD: int = 0b00000001_00000000
-    RA: int = 0b00000000_10000000
-    Z: int = 0b00000000_01110000
-    RCODE: int = 0b00000000_00001111
+    QR = 0b10000000_00000000
+    OPCODE = 0b01111000_00000000
+    AA = 0b00000100_00000000
+    TC = 0b00000010_00000000
+    RD = 0b00000001_00000000
+    RA = 0b00000000_10000000
+    Z = 0b00000000_01110000
+    RCODE = 0b00000000_00001111
 
 
-class DNSClass(Enum):
+class DNSClass(IntEnum):
     """DNS CLASSes
     :param IN: Internet (IN) [https://www.iana.org/go/rfc1035]
     :see: https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-2
     """
 
-    IN: int = 1
+    IN = 1
 
 
-class RRType(Enum):
+class RRType(IntEnum):
     """Resource Record (RR) TYPEs
     :param A: IPv4 Address [https://www.iana.org/go/rfc1035]
     :param AAAA: IPv6 Address [https://www.iana.org/go/rfc3596]
@@ -40,10 +39,10 @@ class RRType(Enum):
     :see: https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4
     """
 
-    A: int = 1
-    AAAA: int = 28
-    CNAME: int = 5
-    OPT: int = 41
+    A = 1
+    AAAA = 28
+    CNAME = 5
+    OPT = 41
 
 
 @dataclass
@@ -76,7 +75,7 @@ class Header:
         return bool(self.flags & Flags.RA.value)
 
 
-class QName(Tuple[bytes]):
+class QName(tuple[bytes]):
     pass
 
 
@@ -121,7 +120,7 @@ class Addition(_RR):
 @dataclass
 class DNSData:
     header: Header
-    questions: List[Question]
-    answers: List[Answer]
-    authorities: List[Authority]
-    additions: List[Addition]
+    questions: list[Question]
+    answers: list[Answer]
+    authorities: list[Authority]
+    additions: list[Addition]

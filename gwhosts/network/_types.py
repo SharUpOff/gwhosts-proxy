@@ -1,5 +1,5 @@
 from socket import AF_INET, SOCK_DGRAM, socket
-from typing import NamedTuple
+from typing import Any, NamedTuple, Optional
 
 RouteClass = int
 IPAddress = str
@@ -33,10 +33,10 @@ class Network(NamedTuple):
 
 
 class GatewayInfo(NamedTuple):
-    address: IPAddress
-    ifname: str
+    address: Optional[IPAddress]
+    ifname: Optional[str]
 
 
 class UDPSocket(socket):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(AF_INET, SOCK_DGRAM, *args, **kwargs)

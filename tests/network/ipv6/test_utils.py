@@ -1,5 +1,3 @@
-from typing import Set, List
-
 import pytest
 
 from gwhosts.network.ipv6 import (
@@ -26,7 +24,7 @@ from gwhosts.network.ipv6 import (
         ),
     ),
 )
-def test_ipv6_reduce_subnets(source: Set[str], result: Set[str]) -> None:
+def test_ipv6_reduce_subnets(source: set[str], result: set[str]) -> None:
     assert {
         ipv6_network_to_str(subnet)
         for subnet in ipv6_reduce_subnets(ipv6_str_to_network(address) for address in source)
@@ -46,7 +44,7 @@ def test_ipv6_reduce_subnets(source: Set[str], result: Set[str]) -> None:
         ),
     ),
 )
-def test_ipv6_sort_addresses(source: Set[str], result: List[str]) -> None:
+def test_ipv6_sort_addresses(source: set[str], result: list[str]) -> None:
     assert [
         ipv6_network_to_str(network) for network in sorted(ipv6_str_to_network(address) for address in source)
     ] == result
