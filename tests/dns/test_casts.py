@@ -14,7 +14,7 @@ from gwhosts.dns import Answer, QName, RRType, answer_to_str
                 rr_data_length=22,
                 rr_data=b"\x0ayoutube-ui\x01l\x06google\x03com\x00",
             ),
-            "www.youtube.com -> youtube-ui.l.google.com",
+            "www.youtube.com → youtube-ui.l.google.com",
         ),
         (
             Answer(
@@ -25,7 +25,7 @@ from gwhosts.dns import Answer, QName, RRType, answer_to_str
                 rr_data_length=4,
                 rr_data=b"\xac\xd9\x13\x4e",
             ),
-            "youtube-ui.l.google.com -> 172.217.19.78",
+            "youtube-ui.l.google.com → 172.217.19.78",
         ),
         (
             Answer(
@@ -36,7 +36,7 @@ from gwhosts.dns import Answer, QName, RRType, answer_to_str
                 rr_data_length=16,
                 rr_data=b"\x2a\x00\x14\x50\x40\x05\x08\x0b\x00\x00\x00\x00\x00\x00\x20\x0e",
             ),
-            "youtube-ui.l.google.com -> 2a00:1450:4005:80b::200e",
+            "youtube-ui.l.google.com → 2a00:1450:4005:80b::200e",
         ),
         (
             Answer(
@@ -47,7 +47,7 @@ from gwhosts.dns import Answer, QName, RRType, answer_to_str
                 rr_data_length=16,
                 rr_data=b"\x75\x6e\x6b\x6e\x6f\x77\x6e",
             ),
-            "youtube-ui.l.google.com -> b'unknown'",
+            "youtube-ui.l.google.com → b'unknown'",
         ),
     ),
 )

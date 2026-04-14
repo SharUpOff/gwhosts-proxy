@@ -32,6 +32,11 @@ class Network(NamedTuple):
     mask: IPBinary
 
 
+class GatewayInfo(NamedTuple):
+    address: IPAddress
+    ifname: str
+
+
 class UDPSocket(socket):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(AF_INET, SOCK_DGRAM, *args, **kwargs)

@@ -4,7 +4,7 @@ from gwhosts.dns import QName
 from gwhosts.network import UDPSocket
 from logging import getLogger
 from pytest_mock import MockerFixture
-from typing import List
+from typing import List, Optional
 
 
 _logger = getLogger("pytest")
@@ -40,13 +40,13 @@ def test_get_socket(proxy: DNSProxy) -> None:
 
 
 @pytest.mark.parametrize(
-    ("hostname", "exists"),
+    ("hostname", "match"),
     (
-        (QName((b"something", b"example", b"com")), True),
-        (QName((b"example", b"com")), True),
-        (QName((b"something", b"com")), False),
-        (QName((b"com",)), False),
+        (QName((b"something", b"example", b"com")), QName((b"example", b"com"))),
+        (QName((b"example", b"com")), QName((b"example", b"com"))),
+        (QName((b"something", b"com")), None),
+        (QName((b"com",)), None),
     ),
 )
-def test_hostname_exists(proxy: DNSProxy, hostname: QName, exists: bool) -> None:
-    assert proxy._hostname_exists(hostname) is exists
+def test_hostname_exists(proxy: DNSProxy, hostname: QName, match: Optional[QName]) -> None:
+    assert proxy._match_hostname(hostname) == match

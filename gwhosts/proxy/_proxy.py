@@ -10,11 +10,12 @@ from time import time
 from typing import Callable, Dict, Iterable, Iterator, List, Set, Tuple, Optional
 
 from ._types import DNSDataMessage, LinkState, RTMEvent
-from ..dns import QName, DNSParserError, RRType, parse, qname_to_str, answer_to_str
+from ..dns import QName, DNSParserError, RRType, parse, qname_to_str, answer_to_str, Answer
 from ..network import (
     Address,
     Datagram,
     ExpiringAddress,
+    GatewayInfo,
     IPAddress,
     IPBinary,
     Network,
@@ -101,6 +102,10 @@ class DNSProxy:
             AF_INET: self._ipv4_netlink_to_network,
             AF_INET6: self._ipv6_netlink_to_network,
         }
+        self._rr_type_to_gateway_info: Dict[RRType, GatewayInfo] = {
+            RRType.A.value: GatewayInfo(ifname=ipv4_ifname, address=ipv4_gateway),
+            RRType.AAAA.value: GatewayInfo(ifname=ipv6_ifname, address=ipv6_gateway),
+        }
 
     @property
     def _open_files_count(self) -> int:
@@ -129,13 +134,12 @@ class DNSProxy:
 
         return _socket
 
-    def _hostname_exists(self, hostname: QName) -> bool:
+    def _match_hostname(self, hostname: QName) -> Optional[QName]:
         for level in range(len(hostname)):
-            if hostname[level:] in self._hostnames:
+            level_name = hostname[level:]
+            if level_name in self._hostnames:
                 self._hostnames.add(hostname)
-                return True
-
-        return False
+                return QName(level_name)
 
     @property
     def ipv4_subnets(self) -> Set[Network]:
@@ -222,18 +226,24 @@ class DNSProxy:
         remote.sendto(data, self._to_addr)
 
         domains = [q.name for q in query.questions]
+        matches: Dict[QName, Optional[QName]] = {hostname: self._match_hostname(hostname) for hostname in domains}
+        all_matches: str = ", ".join(qname_to_str(match) for match in matches.values() if match is not None)
 
-        if any(self._hostname_exists(hostname) for hostname in domains):
+        if all_matches:
             self._routed_pool[remote] = ExpiringAddress(addr, time())
 
             for hostname in domains:
-                self._logger.info(f"DNS: Q[{query.header.id}] <- {qname_to_str(hostname)} (P)")
+                match = matches[hostname]
+                if match is None:
+                    self._logger.info(f"Q:{query.header.id} ← {qname_to_str(hostname)} ({all_matches})")
+                else:
+                    self._logger.info(f"Q:{query.header.id} ← {qname_to_str(hostname)} ({qname_to_str(match)})")
 
         else:
             self._regular_pool[remote] = ExpiringAddress(addr, time())
 
             for hostname in domains:
-                self._logger.info(f"DNS: Q[{query.header.id}] <- {qname_to_str(hostname)}")
+                self._logger.info(f"Q:{query.header.id} ← {qname_to_str(hostname)} (*)")
 
     @staticmethod
     def _sanitize_free_pool(pool: List[socket]) -> None:
@@ -264,6 +274,9 @@ class DNSProxy:
         self._release(_socket)
         return Datagram(data, pool.pop(_socket).address)
 
+    def _get_gateway_info(self, answer: Answer) -> Optional[GatewayInfo]:
+        return self._rr_type_to_gateway_info.get(answer.rr_type)
+
     def _parse_routed_responses(self, responses: List[Datagram]) -> Iterator[DNSDataMessage]:
         for data, addr in responses:
             try:
@@ -275,7 +288,15 @@ class DNSProxy:
 
             else:
                 for answer in response.answers:
-                    self._logger.info(f"DNS: R[{response.header.id}] {answer_to_str(answer)} (P)")
+                    gateway_info = self._get_gateway_info(answer)
+
+                    if gateway_info is None:
+                        self._logger.info(f"R:{response.header.id} → {answer_to_str(answer)}")
+                    else:
+                        self._logger.info(
+                            f"R:{response.header.id} → {answer_to_str(answer)}"
+                            f" → {gateway_info.ifname} → {gateway_info.address}"
+                        )
 
                 yield DNSDataMessage(response, addr)
 
@@ -290,7 +311,7 @@ class DNSProxy:
 
             else:
                 for answer in response.answers:
-                    self._logger.info(f"DNS: R[{response.header.id}] {answer_to_str(answer)}")
+                    self._logger.info(f"R:{response.header.id} → {answer_to_str(answer)}")
 
     @staticmethod
     def _send_responses(queue: List[Datagram], udp: UDPSocket) -> None:
@@ -307,12 +328,12 @@ class DNSProxy:
     def _ipv4_process_rtm_new_route(self, network: Network) -> None:
         """New IPv4 route is added"""
         self._ipv4_subnets.add(network)
-        self._logger.info(f"DNS: network added {ipv4_network_to_str(network)}")
+        self._logger.info(f"network added {ipv4_network_to_str(network)}")
 
     def _ipv4_process_rtm_del_route(self, network: Network) -> None:
         """An existing IPv4 route is deleted"""
         if self._ipv4_ifname in self._preserved_ifnames:
-            self._logger.info(f"DNS: network preserved {ipv4_network_to_str(network)}")
+            self._logger.info(f"network preserved {ipv4_network_to_str(network)}")
             return
 
         try:
@@ -320,10 +341,10 @@ class DNSProxy:
 
         except KeyError as e:
             self._logger.exception(e)
-            self._logger.info(f"DNS: network does not exists {ipv4_network_to_str(network)}")
+            self._logger.info(f"network does not exists {ipv4_network_to_str(network)}")
 
         else:
-            self._logger.info(f"DNS: network deleted {ipv4_network_to_str(network)}")
+            self._logger.info(f"network deleted {ipv4_network_to_str(network)}")
 
     @staticmethod
     def _ipv6_netlink_to_network(address: IPAddress, length: NetworkSize) -> Network:
@@ -335,12 +356,12 @@ class DNSProxy:
     def _ipv6_process_rtm_new_route(self, network: Network) -> None:
         """New IPv6 route is added"""
         self._ipv6_subnets.add(network)
-        self._logger.info(f"DNS: network added {ipv6_network_to_str(network)}")
+        self._logger.info(f"network added {ipv6_network_to_str(network)}")
 
     def _ipv6_process_rtm_del_route(self, network: Network) -> None:
         """An IPv6 existing route is deleted"""
         if self._ipv6_ifname in self._preserved_ifnames:
-            self._logger.info(f"DNS: network preserved {ipv6_network_to_str(network)}")
+            self._logger.info(f"network preserved {ipv6_network_to_str(network)}")
             return
 
         try:
@@ -348,10 +369,10 @@ class DNSProxy:
 
         except KeyError as e:
             self._logger.exception(e)
-            self._logger.info(f"DNS: network does not exists {ipv6_network_to_str(network)}")
+            self._logger.info(f"network does not exists {ipv6_network_to_str(network)}")
 
         else:
-            self._logger.info(f"DNS: network deleted {ipv6_network_to_str(network)}")
+            self._logger.info(f"network deleted {ipv6_network_to_str(network)}")
 
     def _process_rtm_newlink(self, netlink: Netlink, message: dict) -> None:
         attrs = dict(message["attrs"])
@@ -369,20 +390,20 @@ class DNSProxy:
         self._preserved_ifnames.remove(ifname)
 
         if ifname == self._ipv4_ifname:
-            self._logger.info(f"DNS: restoring IPv4 routes via {self._ipv4_gateway}...")
+            self._logger.info(f"restoring IPv4 routes via {self._ipv4_gateway}...")
 
             for _network in self._ipv4_subnets:
                 netlink.ipv4_add_route(_network, self._ipv4_gateway)
 
         if ifname == self._ipv6_ifname:
-            self._logger.info(f"DNS: restoring IPv6 routes via {self._ipv6_gateway}...")
+            self._logger.info(f"restoring IPv6 routes via {self._ipv6_gateway}...")
 
             for _network in self._ipv6_subnets:
                 netlink.ipv6_add_route(_network, self._ipv6_gateway)
 
     def _process_rtm_newlink_down(self, netlink: Netlink, ifname: str) -> None:
         self._preserved_ifnames.add(ifname)
-        self._logger.info(f"DNS: interface preserved {ifname}")
+        self._logger.info(f"interface preserved {ifname}")
 
     def _process_rtm_route(self, netlink: Netlink, message: dict) -> None:
         attrs = dict(message["attrs"])
@@ -425,12 +446,12 @@ class DNSProxy:
             netlink.bind()
             self._input_pool.append(netlink)
 
-            self._logger.info("DNS: loading existing IPv4 routes...")
+            self._logger.info("loading existing IPv4 routes...")
 
             for _message in netlink.get_routes(family=AF_INET):
                 self._process_netlink_message(netlink, _message)
 
-            self._logger.info("DNS: loading existing IPv6 routes...")
+            self._logger.info("loading existing IPv6 routes...")
 
             for _message in netlink.get_routes(family=AF_INET6):
                 self._process_netlink_message(netlink, _message)
@@ -439,7 +460,7 @@ class DNSProxy:
                 udp.bind(addr)
                 self._input_pool.append(udp)
 
-                self._logger.info(f"DNS: proxy is listening at {addr.host}:{addr.port}")
+                self._logger.info(f"proxy is listening at {addr.host}:{addr.port}")
 
                 while True:
                     try:
@@ -463,18 +484,18 @@ class DNSProxy:
                                     self._process_netlink_message(netlink, _message)
 
                             else:
-                                raise AttributeError("DNS: Unknown socket source")
+                                raise AttributeError("Unknown socket source")
 
                         expired_queries = self._sanitize_active_pool(self._routed_pool)
                         expired_queries += self._sanitize_active_pool(self._regular_pool)
 
                         if expired_queries:
-                            self._logger.warning(f"DNS: {expired_queries} queries expired")
+                            self._logger.warning(f"{expired_queries} queries expired")
 
                         queued_queries = self._process_queued_queries()
 
                         if queued_queries:
-                            self._logger.warning(f"DNS: {queued_queries} remaining queries")
+                            self._logger.warning(f"{queued_queries} remaining queries")
 
                         self._sanitize_free_pool(self._free_pool)
 

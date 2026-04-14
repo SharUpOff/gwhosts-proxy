@@ -28,6 +28,6 @@ _RR_TO_STR = {
 
 def answer_to_str(answer: Answer) -> str:
     if answer.rr_type in _RR_TO_STR:
-        return f"{qname_to_str(answer.name)} -> {_RR_TO_STR[answer.rr_type](answer.rr_data)}"
+        return f"{qname_to_str(answer.name)} → {_RR_TO_STR[answer.rr_type](answer.rr_data)}"
 
-    return f"{qname_to_str(answer.name)} -> {answer.rr_data}"
+    return f"{qname_to_str(answer.name)} → {answer.rr_data}"
