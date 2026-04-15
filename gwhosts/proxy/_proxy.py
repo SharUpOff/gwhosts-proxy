@@ -497,6 +497,7 @@ class DNSProxy:
                     try:
                         ready_responses: list[Datagram] = []
                         routed_responses: list[Datagram] = []
+                        datagram: Optional[Datagram]
 
                         r_ready, w_ready, x_ready = select(self._active_pool, [], [], self._timeout_in_seconds)
 
@@ -506,12 +507,16 @@ class DNSProxy:
 
                             elif _socket is tcp:
                                 client_socket, addr = tcp.accept()
-                                self._tcp_client_pool[client_socket] = self._tcp_read(client_socket, addr)
+                                tcp_reader: Iterator[Optional[Datagram]] = self._tcp_read(client_socket, addr)
+
+                                if (datagram := next(tcp_reader, None)) is not None:
+                                    self._queries_queue.append(datagram)
+
+                                else:
+                                    self._tcp_client_pool[client_socket] = tcp_reader
 
                             elif _socket in self._tcp_client_pool:
-                                datagram: Optional[Datagram] = next(self._tcp_client_pool[_socket], None)
-
-                                if datagram is not None:
+                                if (datagram := next(self._tcp_client_pool[_socket], None)) is not None:
                                     self._queries_queue.append(datagram)
                                     del self._tcp_client_pool[_socket]
 
