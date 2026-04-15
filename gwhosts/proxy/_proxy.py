@@ -5,6 +5,7 @@ from collections import deque
 from functools import lru_cache
 from logging import Logger
 from select import select
+from signal import signal, SIGHUP
 from socket import socket, AF_INET, AF_INET6, SOCK_DGRAM, SOCK_STREAM
 from struct import pack, unpack
 from time import time
@@ -483,6 +484,17 @@ class DNSProxy:
 
             for _message in netlink.get_routes(family=AF_INET6):
                 self._process_netlink_message(netlink, _message)
+
+            def _remove_routes(*_args: Any, **_kwargs: Any) -> None:
+                self._logger.info("delete existing IPv4 routes due to SIGHUP...")
+                for network in self._ipv4_subnets:
+                    netlink.ipv4_del_route(network, self._ipv4_gateway)
+
+                self._logger.info("delete existing IPv6 routes due to SIGHUP...")
+                for network in self._ipv6_subnets:
+                    netlink.ipv6_del_route(network, self._ipv6_gateway)
+
+            signal(SIGHUP, _remove_routes)
 
             with UDPSocket() as udp, TCPSocket() as tcp:
                 udp.bind(addr)
