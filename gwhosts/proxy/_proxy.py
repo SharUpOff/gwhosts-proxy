@@ -238,11 +238,10 @@ class DNSProxy:
             self._routed_pool[remote] = ExpiringAddress(addr, time(), sock)
 
             for hostname in domains:
-                match = matches[hostname]
-                if match is None:
-                    self._logger.info(f"Q:{query.header.id} ← {qname_to_str(hostname)} ({all_matches})")
-                else:
+                if (match := matches[hostname]) is not None:
                     self._logger.info(f"Q:{query.header.id} ← {qname_to_str(hostname)} ({qname_to_str(match)})")
+                else:
+                    self._logger.info(f"Q:{query.header.id} ← {qname_to_str(hostname)} ({all_matches})")
 
         else:
             self._regular_pool[remote] = ExpiringAddress(addr, time(), sock)
@@ -294,15 +293,13 @@ class DNSProxy:
 
             else:
                 for answer in response.answers:
-                    gateway_info = self._get_gateway_info(answer)
-
-                    if gateway_info is None:
-                        self._logger.info(f"R:{response.header.id} → {answer_to_str(answer)}")
-                    else:
+                    if (gateway_info := self._get_gateway_info(answer)) is not None:
                         self._logger.info(
                             f"R:{response.header.id} → {answer_to_str(answer)}"
                             f" → {gateway_info.ifname} → {gateway_info.address}"
                         )
+                    else:
+                        self._logger.info(f"R:{response.header.id} → {answer_to_str(answer)}")
 
                 yield DNSDataMessage(response, addr)
 
