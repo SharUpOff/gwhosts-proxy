@@ -8,8 +8,8 @@ IPv4Binary = int
 
 
 IPV4_NETSIZE_MAX: IPv4NetworkSize = 32
-IPV4_NETMASK_MAX: IPv4Binary = 0xFFFFFFFF
-IPV4_NETMASK_MIN: IPv4Binary = 0xFF000000
+IPV4_NETMASK_MAX: IPv4Binary = 0xFF_FF_FF_FF
+IPV4_NETMASK_MIN: IPv4Binary = 0xFF_FF_00_00
 
 
 class IPv4Address(NamedTuple):

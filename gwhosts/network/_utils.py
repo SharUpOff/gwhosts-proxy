@@ -19,12 +19,12 @@ def _reduce_subnets(addresses: Iterable[Network], netmask_min: NetworkSize) -> I
         while idx < length:
             _address = addresses[idx].address
 
-            while _netmask ^ netmask_min:
+            while _netmask >= netmask_min:
                 if _address & _netmask == _netaddr:
                     netaddr, netmask = _netaddr, _netmask
                     break
 
-                _netmask &= _netmask << 8
+                _netmask &= _netmask << 1
                 _netaddr &= _netmask
 
             else:
